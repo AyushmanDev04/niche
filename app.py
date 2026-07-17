@@ -9,6 +9,7 @@ from blocklist import BLOCKLIST
 
 import secrets
 
+
 from db import db
 import models
 
