@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+
+# Editor/IDE folders
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Database
+data.db
+instance/
+
+# OS files
+.DS_Store
+
+# Temp/scratch files
+tempCodeRunnerFile.py
+
+# Environment variables (secrets!)
+.flaskenv
