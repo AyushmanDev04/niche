@@ -1,4 +1,5 @@
 # Save this as: app.py (replaces your existing one)
+# Save this as: app.py (replaces your existing one)
 
 from flask import Flask, jsonify
 from flask_smorest import Api
@@ -114,6 +115,27 @@ def create_app():
     # at all, and every insert/query fails.
     with app.app_context():
         db.create_all()
+
+        # Ensure a permanent admin user always exists. Set ADMIN_USERNAME
+        # and ADMIN_PASSWORD in Render's Environment tab. This runs on
+        # every startup, so the admin survives database resets.
+        admin_username = os.getenv("ADMIN_USERNAME")
+        admin_password = os.getenv("ADMIN_PASSWORD")
+        if admin_username and admin_password:
+            from passlib.hash import pbkdf2_sha256
+            existing = UserModel.query.filter_by(username=admin_username).first()
+            if existing:
+                if not existing.is_admin:
+                    existing.is_admin = True
+                    db.session.commit()
+            else:
+                admin_user = UserModel(
+                    username=admin_username,
+                    password=pbkdf2_sha256.hash(admin_password),
+                    is_admin=True,
+                )
+                db.session.add(admin_user)
+                db.session.commit()
 
     @app.route("/health")
     def health():
