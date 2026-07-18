@@ -1,3 +1,5 @@
+import os
+from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from passlib.hash import pbkdf2_sha256
@@ -87,3 +89,18 @@ class User(MethodView):
         db.session.delete(user)
         db.session.commit()
         return {"message": "User deleted."}, 200
+
+
+# ---- NAYA CODE YAHAN SE SHURU HOTA HAI (file ke bilkul end mein) ----
+@blp.route("/make-admin/<string:username>")
+class MakeAdmin(MethodView):
+    def post(self, username):
+        secret = request.headers.get("X-Admin-Secret")
+        if not secret or secret != os.getenv("ADMIN_SECRET"):
+            abort(403, message="Forbidden")
+        user = UserModel.query.filter_by(username=username).first()
+        if not user:
+            abort(404, message="User not found")
+        user.is_admin = True
+        db.session.commit()
+        return {"message": f"{username} is now an admin."}
