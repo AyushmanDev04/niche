@@ -4,21 +4,20 @@ from flask import Flask, jsonify
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
 import os
-from resources.user import blp as UserBlueprint
+from resources.ser import blp as UserBlueprint
 from models.user import UserModel
 from flask_migrate import Migrate
 from blocklist import BLOCKLIST
 
 
-from flask_cors import CORS
+from flask_cors import CORS  # type: ignore
 from db import db
 import models
 
 from resources.item import blp as ItemBlueprint
 from resources.store import blp as StoreBlueprint
-from resources.tag import blp as TagBlueprint
+from resources.ag import blp as TagBlueprint
 from resources.review import blp as ReviewBlueprint
-
 
 def create_app():
     app = Flask(__name__)
@@ -39,9 +38,6 @@ def create_app():
     api = Api(app)
     CORS(app)
 
-    # NOTE: this was missing in your uploaded app.py — without it, the
-    # @jwt.* decorators below have nothing to attach to and the app crashes
-    # on startup.
     jwt = JWTManager(app)
 
     @jwt.token_in_blocklist_loader
