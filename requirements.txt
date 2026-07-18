@@ -9,4 +9,4 @@ passlib
 flask-migrate==3.1.0
 flask-cors
 pytest
-gunicorns
+gunicorn
