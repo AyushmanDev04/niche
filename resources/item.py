@@ -1,4 +1,3 @@
-import uuid
 from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
@@ -24,7 +23,7 @@ class Item(MethodView):
     def delete(self, item_id):
         jwt = get_jwt()
         if not jwt.get("is_admin"):
-            abort(401, message="Admin privilage required.")
+            abort(401, message="Admin privilege required.")
         item = ItemModel.query.get_or_404(item_id)
         db.session.delete(item)
         db.session.commit()
@@ -33,13 +32,9 @@ class Item(MethodView):
     @blp.arguments(ItemUpdateSchema)
     @blp.response(200, ItemSchema)
     def put(self, item_data, item_id):
-        item = ItemModel.query.get(item_id)
-        
-        if item:
-            item.price = item_data["price"]
-            item.name = item_data["name"]
-        else:
-            item =ItemModel(id=item_id,**item_data)    
+        item = ItemModel.query.get_or_404(item_id)
+        item.name = item_data.get("name", item.name)
+        item.price = item_data.get("price", item.price)
 
         db.session.add(item)
         db.session.commit()

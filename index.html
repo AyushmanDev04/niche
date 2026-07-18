@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Niche Admin</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="sidebarScrim" class="sidebar-scrim" aria-hidden="true"></div>
+    <div class="app-shell">
+      <aside id="mainSidebar" class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark">N</div>
+          <div>
+            <h1>Niche</h1>
+            <p>Store inventory console</p>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="Main navigation">
+          <a href="#dashboard" class="nav-link active" data-view-link="dashboard">Dashboard</a>
+          <a href="#stores" class="nav-link" data-view-link="stores">Stores</a>
+          <a href="#items" class="nav-link" data-view-link="items">Items</a>
+          <a href="#tags" class="nav-link" data-view-link="tags">Tags</a>
+          <a href="#reviews" class="nav-link" data-view-link="reviews">Reviews</a>
+          <a href="#system" class="nav-link" data-view-link="system">System</a>
+        </nav>
+
+        <section class="connection-panel" aria-label="API connection">
+          <label for="apiBase">API base URL</label>
+          <div class="inline-control">
+            <input id="apiBase" type="url" value="http://localhost:5000" />
+            <button id="saveApiBase" type="button">Save</button>
+          </div>
+          <p id="connectionState" class="status-text">Not checked</p>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <button id="menuToggle" class="menu-toggle" type="button" aria-controls="mainSidebar" aria-expanded="false">
+            Menu
+          </button>
+          <div>
+            <p class="eyebrow">Control center</p>
+            <h2 id="viewTitle">Dashboard</h2>
+          </div>
+          <div class="session-actions">
+            <span id="authState" class="pill muted">Signed out</span>
+            <button id="refreshData" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <section id="alertRegion" class="alert-region" aria-live="polite"></section>
+
+        <section id="dashboard" class="view active" data-view="dashboard">
+          <div class="metrics-grid">
+            <article class="metric-card">
+              <span>Stores</span>
+              <strong id="storeCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Items</span>
+              <strong id="itemCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Tags</span>
+              <strong id="tagCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Auth</span>
+              <strong id="authMetric">No token</strong>
+            </article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Recent Items</h3>
+              </div>
+              <div id="recentItems" class="compact-list empty-state">No items loaded.</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Account</h3>
+              </div>
+              <div class="auth-tabs" role="tablist">
+                <button class="tab-button active" type="button" data-auth-tab="login">Login</button>
+                <button class="tab-button" type="button" data-auth-tab="register">Register</button>
+              </div>
+
+              <form id="loginForm" class="form-grid auth-form active">
+                <label>
+                  Username
+                  <input name="username" type="text" autocomplete="username" required />
+                </label>
+                <label>
+                  Password
+                  <input name="password" type="password" autocomplete="current-password" required />
+                </label>
+                <button type="submit">Login</button>
+              </form>
+
+              <form id="registerForm" class="form-grid auth-form">
+                <label>
+                  Username
+                  <input name="username" type="text" autocomplete="username" required />
+                </label>
+                <label>
+                  Password
+                  <input name="password" type="password" autocomplete="new-password" required />
+                </label>
+                <button type="submit">Create Account</button>
+              </form>
+
+              <button id="logoutButton" class="secondary-action" type="button">Logout</button>
+            </section>
+          </div>
+        </section>
+
+        <section id="stores" class="view" data-view="stores">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Create Store</h3>
+              </div>
+              <form id="storeForm" class="form-grid">
+                <label>
+                  Store name
+                  <input name="name" type="text" maxlength="80" required />
+                </label>
+                <button type="submit">Add Store</button>
+              </form>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-heading">
+                <h3>Stores</h3>
+              </div>
+              <div id="storesTable" class="data-table empty-state">No stores loaded.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="items" class="view" data-view="items">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Create Item</h3>
+              </div>
+              <form id="itemForm" class="form-grid">
+                <label>
+                  Item name
+                  <input name="name" type="text" maxlength="80" required />
+                </label>
+                <label>
+                  Price
+                  <input name="price" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  Image URL
+                  <input name="image_url" type="url" placeholder="https://..." />
+                </label>
+                <label>
+                  Store
+                  <select name="store_id" required></select>
+                </label>
+                <button type="submit">Add Item</button>
+              </form>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-heading">
+                <h3>Items</h3>
+              </div>
+              <div id="itemsTable" class="data-table empty-state">No items loaded.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tags" class="view" data-view="tags">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Create Tag</h3>
+              </div>
+              <form id="tagForm" class="form-grid">
+                <label>
+                  Tag name
+                  <input name="name" type="text" maxlength="80" required />
+                </label>
+                <label>
+                  Store
+                  <select name="store_id" required></select>
+                </label>
+                <button type="submit">Add Tag</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Link Tag To Item</h3>
+              </div>
+              <form id="linkTagForm" class="form-grid">
+                <label>
+                  Item
+                  <select name="item_id" required></select>
+                </label>
+                <label>
+                  Tag
+                  <select name="tag_id" required></select>
+                </label>
+                <button type="submit">Link Tag</button>
+              </form>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-heading">
+                <h3>Tags</h3>
+              </div>
+              <div id="tagsTable" class="data-table empty-state">No tags loaded.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="reviews" class="view" data-view="reviews">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Add Review</h3>
+              </div>
+              <form id="reviewForm" class="form-grid">
+                <label>
+                  Item
+                  <select name="item_id" required></select>
+                </label>
+                <label>
+                  Rating
+                  <select name="rating" required>
+                    <option value="5">5 - Excellent</option>
+                    <option value="4">4 - Good</option>
+                    <option value="3">3 - Average</option>
+                    <option value="2">2 - Poor</option>
+                    <option value="1">1 - Bad</option>
+                  </select>
+                </label>
+                <label>
+                  Comment
+                  <textarea name="comment" rows="3" maxlength="500"></textarea>
+                </label>
+                <button type="submit">Submit Review</button>
+              </form>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-heading">
+                <h3>Reviews</h3>
+              </div>
+              <div id="reviewsTable" class="data-table empty-state">No reviews loaded.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="system" class="view" data-view="system">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>API Check</h3>
+              </div>
+              <div class="system-stack">
+                <button id="checkApiButton" type="button">Check API</button>
+                <p id="apiCheckResult" class="status-text">Waiting for a check.</p>
+              </div>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-heading">
+                <h3>Operational Notes</h3>
+              </div>
+              <div class="note-list">
+                <p>Use Docker or Flask to start the backend before loading data.</p>
+                <p>If requests fail in the browser but work in Insomnia, enable CORS in Flask.</p>
+                <p>Use the same base URL here that you use in Insomnia.</p>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
