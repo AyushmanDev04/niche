@@ -10,7 +10,7 @@ from flask_migrate import Migrate
 from blocklist import BLOCKLIST
 
 
-from flask_cors import CORS  # type: ignore
+from flask_cors import CORS  #type: ignore
 from db import db
 import models
 
@@ -20,13 +20,16 @@ from resources.ag import blp as TagBlueprint
 from resources.review import blp as ReviewBlueprint
 
 def create_app():
-    app = Flask(__name__)
+    # static_folder="." + static_url_path="" makes Flask serve any file
+    # sitting in the project root (index.html, app.js, styles.css) directly
+    # e.g. app.js is served at /app.js, styles.css at /styles.css
+    app = Flask(__name__, static_folder=".", static_url_path="")
 
     app.config["PROPAGATE_EXCEPTIONS"] = True
     app.config["API_TITLE"] = "Stores REST API"
     app.config["API_VERSION"] = "v1"
     app.config["OPENAPI_VERSION"] = "3.0.3"
-    app.config["OPENAPI_URL_PREFIX"] = "/"
+    app.config["OPENAPI_URL_PREFIX"] = "/api-docs"
     app.config["OPENAPI_SWAGGER_UI_PATH"] = "/swagger-ui"
     app.config["OPENAPI_SWAGGER_UI_URL"] = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///data.db")
@@ -109,5 +112,10 @@ def create_app():
     @app.route("/health")
     def health():
         return jsonify({"status": "ok"}), 200
+
+    # Serve the frontend at the root URL
+    @app.route("/")
+    def serve_frontend():
+        return app.send_static_file("index.html")
 
     return app
