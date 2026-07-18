@@ -10,7 +10,7 @@ from flask_migrate import Migrate
 from blocklist import BLOCKLIST
 
 
-from flask_cors import CORS  #type: ignore
+from flask_cors import CORS # type: ignore
 from db import db
 import models
 
@@ -108,6 +108,12 @@ def create_app():
     api.register_blueprint(TagBlueprint)
     api.register_blueprint(UserBlueprint)
     api.register_blueprint(ReviewBlueprint)
+
+    # Create database tables if they don't exist yet. Without this, a fresh
+    # deploy (fresh SQLite file, or fresh Postgres database) has no tables
+    # at all, and every insert/query fails.
+    with app.app_context():
+        db.create_all()
 
     @app.route("/health")
     def health():
