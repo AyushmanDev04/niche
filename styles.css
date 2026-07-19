@@ -101,12 +101,8 @@ label {
 .brand-mark {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: var(--text);
-  color: #fff;
-  font-weight: 900;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .brand-block h1,
