@@ -4,3 +4,6 @@ from models.tag import TagModel
 from models.item_tags import ItemTags
 from models.user import UserModel
 from models.review import ReviewModel
+from models.store_worker import StoreWorkerModel
+from models.activity import ActivityLogModel
+from models.order import OrderModel

@@ -1,6 +1,3 @@
-# Save this as: app.py (replaces your existing one)
-# Save this as: app.py (replaces your existing one)
-
 from flask import Flask, jsonify
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
@@ -11,7 +8,7 @@ from flask_migrate import Migrate
 from blocklist import BLOCKLIST
 
 
-from flask_cors import CORS # type: ignore
+from flask_cors import CORS  # type: ignore
 from db import db
 import models
 
@@ -19,6 +16,8 @@ from resources.item import blp as ItemBlueprint
 from resources.store import blp as StoreBlueprint
 from resources.ag import blp as TagBlueprint
 from resources.review import blp as ReviewBlueprint
+from resources.order import blp as OrderBlueprint
+
 
 def create_app():
     # static_folder="." + static_url_path="" makes Flask serve any file
@@ -46,7 +45,10 @@ def create_app():
 
     @jwt.token_in_blocklist_loader
     def check_if_token_in_blocklist(jwt_header, jwt_payload):
-        return jwt_payload["jti"] in BLOCKLIST
+        if jwt_payload["jti"] in BLOCKLIST:
+            return True
+        user = UserModel.query.get(int(jwt_payload["sub"]))
+        return bool(user and user.is_banned)
 
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):
@@ -109,6 +111,7 @@ def create_app():
     api.register_blueprint(TagBlueprint)
     api.register_blueprint(UserBlueprint)
     api.register_blueprint(ReviewBlueprint)
+    api.register_blueprint(OrderBlueprint)
 
     # Create database tables if they don't exist yet. Without this, a fresh
     # deploy (fresh SQLite file, or fresh Postgres database) has no tables
@@ -140,6 +143,10 @@ def create_app():
     @app.route("/health")
     def health():
         return jsonify({"status": "ok"}), 200
+
+    @app.route("/config")
+    def config():
+        return jsonify({"google_client_id": os.getenv("GOOGLE_CLIENT_ID", "")}), 200
 
     # Serve the frontend at the root URL
     @app.route("/")

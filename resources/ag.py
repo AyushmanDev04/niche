@@ -4,8 +4,9 @@ from flask_jwt_extended import jwt_required
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import db
-from models import TagModel, StoreModel ,ItemModel
+from models import TagModel, StoreModel, ItemModel
 from schemas import TagSchema, TagAndItemSchema
+from activity_log import log_activity
 
 blp = Blueprint("Tags", "tags", description="Operations on tags")
 
@@ -15,24 +16,26 @@ class TagsInStore(MethodView):
     @jwt_required()
     @blp.response(200, TagSchema(many=True))
     def get(self, store_id):
-        store =StoreModel.query.get_or_404(store_id)
-
+        store = StoreModel.query.get_or_404(store_id)
         return store.tags.all()
 
     @jwt_required()
     @blp.arguments(TagSchema)
     @blp.response(201, TagSchema)
     def post(self, tag_data, store_id):
-      
-        tag = TagModel(**tag_data,store_id = store_id)
+        tag = TagModel(**tag_data, store_id=store_id)
 
         try:
             db.session.add(tag)
+            db.session.flush()
+            log_activity("create_tag", details=f"tag '{tag.name}' in store id={store_id}")
             db.session.commit()
         except SQLAlchemyError:
+            db.session.rollback()
             abort(500, message="An error occurred while inserting the tag.")
 
         return tag
+
 
 @blp.route("/item/<int:item_id>/tag/<int:tag_id>")
 class LinkTagsToItem(MethodView):
@@ -46,11 +49,14 @@ class LinkTagsToItem(MethodView):
 
         try:
             db.session.add(item)
+            log_activity("link_tag", details=f"linked tag '{tag.name}' to item '{item.name}'")
             db.session.commit()
         except SQLAlchemyError:
+            db.session.rollback()
             abort(500, message="An error occurred while inserting the tag.")
 
-        return {"message":"Item added to tag", "item":item, "tag":tag}
+        return {"message": "Item added to tag", "item": item, "tag": tag}
+
 
 @blp.route("/tag/<int:tag_id>")
 class Tag(MethodView):
@@ -75,6 +81,7 @@ class Tag(MethodView):
         tag = TagModel.query.get_or_404(tag_id)
 
         if not tag.items:
+            log_activity("delete_tag", details=f"tag '{tag.name}' (id={tag.id})")
             db.session.delete(tag)
             db.session.commit()
             return {"message": "Tag deleted."}

@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from db import db
 from models import ReviewModel, ItemModel
 from schemas import ReviewSchema
+from activity_log import log_activity
 
 blp = Blueprint("Reviews", "reviews", description="Operations on reviews")
 
@@ -21,7 +22,7 @@ class ItemReviewList(MethodView):
     @blp.arguments(ReviewSchema)
     @blp.response(201, ReviewSchema)
     def post(self, review_data, item_id):
-        ItemModel.query.get_or_404(item_id)
+        item = ItemModel.query.get_or_404(item_id)
         user_id = get_jwt_identity()
 
         review = ReviewModel(
@@ -33,8 +34,11 @@ class ItemReviewList(MethodView):
 
         try:
             db.session.add(review)
+            db.session.flush()
+            log_activity("create_review", details=f"rated item '{item.name}' (id={item.id}) {review.rating}/5")
             db.session.commit()
         except SQLAlchemyError:
+            db.session.rollback()
             abort(500, message="An error occurred while inserting the review.")
 
         return review
@@ -50,6 +54,7 @@ class Review(MethodView):
         if str(review.user_id) != str(user_id):
             abort(403, message="You can only delete your own review.")
 
+        log_activity("delete_review", details=f"deleted own review (id={review.id})")
         db.session.delete(review)
         db.session.commit()
         return {"message": "Review deleted."}
