@@ -10,4 +10,5 @@ flask-migrate==3.1.0
 flask-cors
 google-auth
 pytest
-gunicornpsycopg2-binary
+gunicorn
+psycopg2-binary
