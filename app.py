@@ -117,7 +117,7 @@ def create_app():
     # deploy (fresh SQLite file, or fresh Postgres database) has no tables
     # at all, and every insert/query fails.
     with app.app_context():
-        db.create_all()
+       # db.create_all()
 
         # Ensure a permanent admin user always exists. Set ADMIN_USERNAME
         # and ADMIN_PASSWORD in Render's Environment tab. This runs on
