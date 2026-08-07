@@ -89,6 +89,34 @@ const els = {
   // admin
   usersTable: $("#usersTable"),
   activityTable: $("#activityTable"),
+  // orders summary + account
+  ordersTotalCount: $("#ordersTotalCount"),
+  ordersPendingCount: $("#ordersPendingCount"),
+  ordersFulfilledCount: $("#ordersFulfilledCount"),
+  ordersTotalSpent: $("#ordersTotalSpent"),
+  accountDetails: $("#accountDetails"),
+  deliveryForm: $("#deliveryForm"),
+  // modal
+  modalRoot: $("#modalRoot"),
+  modalTitle: $("#modalTitle"),
+  modalBody: $("#modalBody"),
+  modalFoot: $("#modalFoot"),
+};
+
+// Saved delivery details, prefilled at checkout. Kept in localStorage rather
+// than on the user record because each order already stores its own copy —
+// editing this must never rewrite a past order's delivery address.
+const delivery = {
+  get address() {
+    return localStorage.getItem("niche.deliveryAddress") || "";
+  },
+  get phone() {
+    return localStorage.getItem("niche.deliveryPhone") || "";
+  },
+  save(address, phone) {
+    localStorage.setItem("niche.deliveryAddress", address || "");
+    localStorage.setItem("niche.deliveryPhone", phone || "");
+  },
 };
 
 els.apiBase.value = state.apiBase;
@@ -142,8 +170,14 @@ function starNode(rating) {
   return wrap;
 }
 
+// Rupees: this is a platform for Indian local shops, and en-IN also groups
+// digits the way its users expect (1,20,000 rather than 120,000).
 function money(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+  }).format(Number(value || 0));
 }
 
 function button(label, className, onClick) {
@@ -167,7 +201,9 @@ function renderTable(target, columns, rows, emptyMessage = "Nothing here yet.") 
 
   const table = el("table");
   const headRow = el("tr");
-  columns.forEach((column) => headRow.append(el("th", null, column.label)));
+  // The same className goes on the header and every cell in that column, so
+  // numeric columns and their headings stay aligned with each other.
+  columns.forEach((column) => headRow.append(el("th", column.className, column.label)));
   const thead = el("thead");
   thead.append(headRow);
 
@@ -175,7 +211,7 @@ function renderTable(target, columns, rows, emptyMessage = "Nothing here yet.") 
   rows.forEach((row) => {
     const tr = el("tr");
     columns.forEach((column) => {
-      const td = el("td");
+      const td = el("td", column.className);
       const value = column.value(row);
       if (value instanceof Node) td.append(value);
       else td.textContent = value == null ? "" : String(value);
@@ -192,6 +228,63 @@ function setAlert(message, type = "info", region = els.alertRegion) {
   region.replaceChildren();
   if (!message) return;
   region.append(el("div", `alert ${type}`, message));
+}
+
+/* ------------------------------------------------------------------ */
+/* Modals                                                              */
+/*                                                                     */
+/* window.prompt/confirm were used for checkout and reviews. They can't */
+/* show a running total, validate before submitting, or be styled, and  */
+/* a browser-chrome dialog reads as unfinished on a storefront.         */
+/* ------------------------------------------------------------------ */
+
+let closeModal = () => {};
+
+function openModal({ title, body, actions, onOpen }) {
+  const root = els.modalRoot;
+  els.modalTitle.textContent = title;
+  els.modalBody.replaceChildren(body);
+  els.modalFoot.replaceChildren(...actions);
+  root.hidden = false;
+  document.body.classList.add("modal-open");
+
+  const previouslyFocused = document.activeElement;
+
+  const onKey = (event) => {
+    if (event.key === "Escape") closeModal();
+  };
+  document.addEventListener("keydown", onKey);
+
+  closeModal = () => {
+    root.hidden = true;
+    document.body.classList.remove("modal-open");
+    document.removeEventListener("keydown", onKey);
+    closeModal = () => {};
+    if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus();
+  };
+
+  root.querySelectorAll("[data-modal-dismiss]").forEach((node) => {
+    node.onclick = () => closeModal();
+  });
+
+  if (onOpen) onOpen();
+  else els.modalBody.querySelector("input, textarea, select, button")?.focus();
+}
+
+// Styled stand-in for window.confirm. Resolves true/false.
+function confirmAction({ title, message, confirmLabel = "Confirm", danger = false }) {
+  return new Promise((resolve) => {
+    const body = el("p", "modal-message", message);
+    const cancel = button("Keep it", "ghost", () => {
+      closeModal();
+      resolve(false);
+    });
+    const go = button(confirmLabel, danger ? "danger-solid" : "", () => {
+      closeModal();
+      resolve(true);
+    });
+    openModal({ title, body, actions: [cancel, go], onOpen: () => go.focus() });
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -584,72 +677,294 @@ function renderCatalogue() {
   );
 }
 
-async function placeOrder(item) {
-  const raw = window.prompt(`How many "${item.name}"?`, "1");
-  if (raw === null) return;
-  const quantity = Number(raw);
-  if (!Number.isInteger(quantity) || quantity < 1) {
-    setAlert("Quantity must be a whole number of at least 1.", "error");
-    return;
-  }
-  try {
-    await request(`/item/${item.id}/order`, {
-      method: "POST",
-      body: JSON.stringify({ quantity }),
-    });
-    setAlert(`Ordered ${quantity} × ${item.name}.`, "success");
-    await loadCustomerData();
-  } catch (error) {
-    setAlert(error.message, "error");
-  }
+function field(labelText, control, hint) {
+  const label = el("label", null, labelText);
+  label.append(control);
+  if (hint) label.append(el("small", "field-hint", hint));
+  return label;
 }
 
-async function openReview(item) {
-  const raw = window.prompt(`Rate "${item.name}" from 1 to 5:`, "5");
-  if (raw === null) return;
-  const rating = Number(raw);
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    setAlert("Rating must be a whole number from 1 to 5.", "error");
-    return;
-  }
-  const comment = window.prompt("Add a comment (optional):", "") || undefined;
-  try {
-    await request(`/item/${item.id}/review`, {
-      method: "POST",
-      body: JSON.stringify({ rating, comment }),
+function placeOrder(item) {
+  const body = el("div", "checkout");
+
+  // Item summary, so the customer can see what they are buying.
+  const summary = el("div", "checkout-item");
+  const img = thumbnail(item, "checkout-thumb");
+  if (img) summary.append(img);
+  const meta = el("div", "checkout-meta");
+  meta.append(el("strong", null, item.name));
+  meta.append(el("span", "muted", item.store?.name || "Store"));
+  meta.append(el("span", "muted", `${money(item.price)} each`));
+  summary.append(meta);
+  body.append(summary);
+
+  const qty = el("input");
+  qty.type = "number";
+  qty.min = "1";
+  qty.max = "1000";
+  qty.step = "1";
+  qty.value = "1";
+  qty.name = "quantity";
+
+  const address = el("textarea");
+  address.rows = 3;
+  address.maxLength = 300;
+  address.name = "delivery_address";
+  address.value = delivery.address;
+  address.placeholder = "House / street / area, city, PIN";
+
+  const phone = el("input");
+  phone.type = "tel";
+  phone.maxLength = 20;
+  phone.name = "contact_phone";
+  phone.value = delivery.phone;
+  phone.placeholder = "10-digit mobile number";
+
+  body.append(field("Quantity", qty));
+  body.append(field("Delivery address", address, "The shop needs this to deliver."));
+  body.append(field("Contact phone", phone));
+
+  // Running total, so there is no surprise at confirmation.
+  const totalRow = el("div", "checkout-total");
+  const totalValue = el("strong", null, money(item.price));
+  totalRow.append(el("span", null, "Order total"), totalValue);
+  body.append(totalRow);
+
+  const error = el("p", "modal-error");
+  error.hidden = true;
+  body.append(error);
+
+  const recalc = () => {
+    const n = Number(qty.value);
+    totalValue.textContent =
+      Number.isInteger(n) && n > 0 ? money(item.price * n) : "—";
+  };
+  qty.addEventListener("input", recalc);
+
+  const cancel = button("Cancel", "ghost", () => closeModal());
+  const confirm = button("Place order", "", async () => {
+    const quantity = Number(qty.value);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      error.textContent = "Quantity must be a whole number of at least 1.";
+      error.hidden = false;
+      return;
+    }
+    if (!address.value.trim()) {
+      error.textContent = "A delivery address is required.";
+      error.hidden = false;
+      address.focus();
+      return;
+    }
+
+    confirm.disabled = true;
+    try {
+      delivery.save(address.value.trim(), phone.value.trim());
+      const order = await request(`/item/${item.id}/order`, {
+        method: "POST",
+        body: JSON.stringify({
+          quantity,
+          delivery_address: address.value.trim(),
+          contact_phone: phone.value.trim() || null,
+        }),
+      });
+      closeModal();
+      setAlert(`Order ${order.reference} placed — ${money(order.total)}.`, "success");
+      await loadCustomerData();
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+      confirm.disabled = false;
+    }
+  });
+
+  openModal({
+    title: `Order ${item.name}`,
+    body,
+    actions: [cancel, confirm],
+    onOpen: () => qty.focus(),
+  });
+}
+
+function openReview(item) {
+  const body = el("div", "review-form");
+
+  const stars = el("div", "star-picker");
+  let chosen = 5;
+  const buttons = [1, 2, 3, 4, 5].map((value) => {
+    const star = el("button", "star-button", "★");
+    star.type = "button";
+    star.setAttribute("aria-label", `${value} star${value === 1 ? "" : "s"}`);
+    star.addEventListener("click", () => {
+      chosen = value;
+      buttons.forEach((b, i) => b.classList.toggle("on", i < value));
     });
-    setAlert("Review posted.", "success");
-    await loadCustomerData();
-  } catch (error) {
-    setAlert(error.message, "error");
+    stars.append(star);
+    return star;
+  });
+  buttons.forEach((b) => b.classList.add("on"));
+
+  const comment = el("textarea");
+  comment.rows = 4;
+  comment.maxLength = 500;
+  comment.placeholder = "What did you think? (optional)";
+
+  body.append(field("Your rating", stars));
+  body.append(field("Comment", comment));
+
+  const error = el("p", "modal-error");
+  error.hidden = true;
+  body.append(error);
+
+  const cancel = button("Cancel", "ghost", () => closeModal());
+  const submit = button("Post review", "", async () => {
+    submit.disabled = true;
+    try {
+      await request(`/item/${item.id}/review`, {
+        method: "POST",
+        body: JSON.stringify({
+          rating: chosen,
+          comment: comment.value.trim() || undefined,
+        }),
+      });
+      closeModal();
+      setAlert("Review posted.", "success");
+      await loadCustomerData();
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+      submit.disabled = false;
+    }
+  });
+
+  openModal({ title: `Review ${item.name}`, body, actions: [cancel, submit] });
+}
+
+// Item cell shared by the customer and shopkeeper order tables: thumbnail,
+// name and the store it came from, so a row is identifiable at a glance
+// rather than showing a bare product name.
+function orderItemCell(order) {
+  const wrap = el("div", "cell-media");
+  const item = order.item || {};
+  const img = thumbnail(item, "cell-thumb");
+  wrap.append(img || el("span", "cell-thumb placeholder", "—"));
+  const meta = el("div", "cell-meta");
+  meta.append(el("strong", null, item.name || `Item #${order.item_id}`));
+  meta.append(el("span", "muted", order.store_name || ""));
+  wrap.append(meta);
+  return wrap;
+}
+
+function orderTotalCell(order) {
+  if (order.total === null || order.total === undefined) {
+    // Pre-dates price snapshotting and the item is gone, so no honest total.
+    return el("span", "muted", "unavailable");
   }
+  return el("strong", null, money(order.total));
 }
 
 function renderMyOrders() {
+  const orders = state.myOrders;
+
+  els.ordersTotalCount.textContent = orders.length;
+  els.ordersPendingCount.textContent = orders.filter((o) => o.status === "pending").length;
+  els.ordersFulfilledCount.textContent = orders.filter((o) => o.status === "fulfilled").length;
+  // Cancelled orders are excluded: money that was never spent.
+  els.ordersTotalSpent.textContent = money(
+    orders
+      .filter((o) => o.status !== "cancelled")
+      .reduce((sum, o) => sum + (o.total || 0), 0)
+  );
+
   renderTable(
     els.myOrdersTable,
     [
-      { label: "Item", value: (order) => order.item?.name || `Item #${order.item_id}` },
-      { label: "Qty", value: (order) => order.quantity },
+      { label: "Order", value: (order) => el("code", "order-ref", order.reference), className: "col-ref" },
+      { label: "Item", value: orderItemCell },
+      { label: "Price", value: (order) => (order.unit_price == null ? "—" : money(order.unit_price)), className: "col-num" },
+      { label: "Qty", value: (order) => order.quantity, className: "col-num" },
+      { label: "Total", value: orderTotalCell, className: "col-num" },
       { label: "Status", value: (order) => statusPill(order.status) },
-      { label: "Placed", value: (order) => new Date(order.created_at).toLocaleString() },
+      { label: "Placed", value: (order) => new Date(order.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) },
       {
-        label: "",
-        value: (order) =>
-          order.status === "pending"
-            ? button("Cancel", "small danger", () => cancelOrder(order))
-            : el("span", "muted", "—"),
+        label: "Actions",
+        className: "col-actions",
+        value: (order) => {
+          const wrap = el("div", "row-actions");
+          wrap.append(button("Details", "small ghost", () => showOrderDetail(order)));
+          if (order.status === "pending") {
+            wrap.append(button("Cancel", "small danger", () => cancelOrder(order)));
+          }
+          return wrap;
+        },
       },
     ],
-    state.myOrders,
+    orders,
     "You have not ordered anything yet."
   );
 }
 
+// Full order summary — the "view details / invoice" affordance the table
+// itself has no room for.
+function showOrderDetail(order) {
+  const body = el("div", "order-detail");
+
+  const head = el("div", "checkout-item");
+  const img = thumbnail(order.item || {}, "checkout-thumb");
+  if (img) head.append(img);
+  const meta = el("div", "checkout-meta");
+  meta.append(el("strong", null, order.item?.name || `Item #${order.item_id}`));
+  meta.append(el("span", "muted", order.store_name || ""));
+  head.append(meta);
+  body.append(head);
+
+  const rows = [
+    ["Order number", order.reference],
+    ["Placed", new Date(order.created_at).toLocaleString()],
+    ["Status", order.status],
+    ["Unit price", order.unit_price == null ? "—" : money(order.unit_price)],
+    ["Quantity", String(order.quantity)],
+    ["Total", order.total == null ? "unavailable" : money(order.total)],
+    ["Deliver to", order.delivery_address || "Not provided"],
+    ["Contact", order.contact_phone || "Not provided"],
+  ];
+  if (order.username) rows.splice(3, 0, ["Customer", order.username]);
+
+  const list = el("dl", "detail-list");
+  rows.forEach(([term, value]) => {
+    list.append(el("dt", null, term));
+    list.append(el("dd", null, value));
+  });
+  body.append(list);
+
+  body.append(
+    el(
+      "p",
+      "modal-note",
+      "Prices are recorded when the order is placed, so later price changes in the shop do not affect this total."
+    )
+  );
+
+  openModal({
+    title: order.reference,
+    body,
+    actions: [button("Close", "ghost", () => closeModal())],
+  });
+}
+
 async function cancelOrder(order) {
+  const ok = await confirmAction({
+    title: "Cancel this order?",
+    message: `${order.reference} — ${order.quantity} × ${order.item?.name || "item"}${
+      order.total != null ? ` (${money(order.total)})` : ""
+    }. This cannot be undone.`,
+    confirmLabel: "Cancel order",
+    danger: true,
+  });
+  if (!ok) return;
+
   try {
     await request(`/order/${order.id}/cancel`, { method: "POST" });
-    setAlert("Order cancelled.", "success");
+    setAlert(`${order.reference} cancelled.`, "success");
     await loadCustomerData();
   } catch (error) {
     setAlert(error.message, "error");
@@ -687,6 +1002,31 @@ async function deleteReview(review) {
     setAlert(error.message, "error");
   }
 }
+
+function renderAccount() {
+  const rows = [
+    ["Username", state.username || "—"],
+    ["Account type", state.isAdmin ? "Admin" : state.role || "—"],
+    ["Account ID", state.userId != null ? String(state.userId) : "—"],
+    ["Orders placed", String(state.myOrders.length)],
+    ["Reviews written", String(state.myReviews.length)],
+  ];
+  els.accountDetails.replaceChildren();
+  rows.forEach(([term, value]) => {
+    els.accountDetails.append(el("dt", null, term));
+    els.accountDetails.append(el("dd", null, value));
+  });
+
+  els.deliveryForm.querySelector("[name=delivery_address]").value = delivery.address;
+  els.deliveryForm.querySelector("[name=contact_phone]").value = delivery.phone;
+}
+
+els.deliveryForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = formData(els.deliveryForm);
+  delivery.save((data.delivery_address || "").trim(), (data.contact_phone || "").trim());
+  setAlert("Delivery details saved. They'll be filled in at checkout.", "success");
+});
 
 /* ------------------------------------------------------------------ */
 /* Shopkeeper views                                                    */
@@ -802,7 +1142,13 @@ function renderStores() {
 }
 
 async function deleteStore(store) {
-  if (!window.confirm(`Delete "${store.name}" and everything in it?`)) return;
+  const ok = await confirmAction({
+    title: "Delete this store?",
+    message: `"${store.name}" and all of its items, tags and order history will be removed. This cannot be undone.`,
+    confirmLabel: "Delete store",
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await request(`/store/${store.id}`, { method: "DELETE" });
     setAlert("Store deleted.", "success");
@@ -856,28 +1202,73 @@ async function toggleHidden(item) {
   }
 }
 
-async function editItem(item) {
-  const name = window.prompt("Item name:", item.name);
-  if (name === null) return;
-  const price = window.prompt("Price:", item.price);
-  if (price === null) return;
-  const imageUrl = window.prompt("Image URL (blank for none):", item.image_url || "");
-  if (imageUrl === null) return;
+function editItem(item) {
+  const body = el("div", "checkout");
 
-  const payload = { name, price: Number(price) };
-  if (imageUrl.trim()) payload.image_url = imageUrl.trim();
+  const name = el("input");
+  name.type = "text";
+  name.maxLength = 80;
+  name.value = item.name || "";
 
-  try {
-    await request(`/item/${item.id}`, { method: "PUT", body: JSON.stringify(payload) });
-    setAlert("Item updated.", "success");
-    await loadShopkeeperData();
-  } catch (error) {
-    setAlert(error.message, "error");
-  }
+  const price = el("input");
+  price.type = "number";
+  price.min = "0";
+  price.step = "0.01";
+  price.value = item.price ?? "";
+
+  const imageUrl = el("input");
+  imageUrl.type = "url";
+  imageUrl.value = item.image_url || "";
+  imageUrl.placeholder = "https://…";
+
+  body.append(field("Item name", name));
+  body.append(
+    field(
+      "Price",
+      price,
+      "Changing this affects future orders only — past orders keep the price paid."
+    )
+  );
+  body.append(field("Image URL", imageUrl, "Leave blank for no image."));
+
+  const error = el("p", "modal-error");
+  error.hidden = true;
+  body.append(error);
+
+  const cancel = button("Cancel", "ghost", () => closeModal());
+  const save = button("Save changes", "", async () => {
+    if (!name.value.trim()) {
+      error.textContent = "Name cannot be empty.";
+      error.hidden = false;
+      return;
+    }
+    const payload = { name: name.value.trim(), price: Number(price.value) };
+    if (imageUrl.value.trim()) payload.image_url = imageUrl.value.trim();
+
+    save.disabled = true;
+    try {
+      await request(`/item/${item.id}`, { method: "PUT", body: JSON.stringify(payload) });
+      closeModal();
+      setAlert("Item updated.", "success");
+      await loadShopkeeperData();
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+      save.disabled = false;
+    }
+  });
+
+  openModal({ title: `Edit ${item.name}`, body, actions: [cancel, save] });
 }
 
 async function deleteItem(item) {
-  if (!window.confirm(`Delete "${item.name}"?`)) return;
+  const ok = await confirmAction({
+    title: "Delete this item?",
+    message: `"${item.name}" will be removed from your inventory, along with its reviews and order history.`,
+    confirmLabel: "Delete item",
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await request(`/item/${item.id}`, { method: "DELETE" });
     setAlert("Item deleted.", "success");
@@ -915,18 +1306,39 @@ function renderSales() {
   renderTable(
     els.salesTable,
     [
-      { label: "Item", value: (order) => order.item?.name || `Item #${order.item_id}` },
+      { label: "Order", value: (order) => el("code", "order-ref", order.reference), className: "col-ref" },
+      { label: "Item", value: orderItemCell },
       { label: "Customer", value: (order) => order.username || `User #${order.user_id}` },
-      { label: "Qty", value: (order) => order.quantity },
-      { label: "Status", value: (order) => statusPill(order.status) },
-      { label: "Placed", value: (order) => new Date(order.created_at).toLocaleString() },
       {
-        label: "",
+        // The shop cannot deliver without this, so it belongs in the list
+        // rather than hidden behind a detail click.
+        label: "Deliver to",
         value: (order) => {
-          if (order.status !== "pending") return el("span", "muted", "—");
+          if (!order.delivery_address) return el("span", "muted", "not provided");
+          const wrap = el("div", "cell-meta");
+          const line = el("span", "address-line", order.delivery_address);
+          // The cell truncates to keep rows scannable, so expose the full
+          // address on hover — the shop cannot deliver to half an address.
+          line.title = order.delivery_address;
+          wrap.append(line);
+          if (order.contact_phone) wrap.append(el("span", "muted", order.contact_phone));
+          return wrap;
+        },
+      },
+      { label: "Qty", value: (order) => order.quantity, className: "col-num" },
+      { label: "Total", value: orderTotalCell, className: "col-num" },
+      { label: "Status", value: (order) => statusPill(order.status) },
+      { label: "Placed", value: (order) => new Date(order.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" }) },
+      {
+        label: "Actions",
+        className: "col-actions",
+        value: (order) => {
           const wrap = el("div", "row-actions");
-          wrap.append(button("Fulfil", "small", () => updateOrder(order, "fulfill")));
-          wrap.append(button("Cancel", "small danger", () => updateOrder(order, "cancel")));
+          wrap.append(button("Details", "small ghost", () => showOrderDetail(order)));
+          if (order.status === "pending") {
+            wrap.append(button("Fulfil", "small", () => updateOrder(order, "fulfill")));
+            wrap.append(button("Cancel", "small danger", () => updateOrder(order, "cancel")));
+          }
           return wrap;
         },
       },
@@ -937,9 +1349,21 @@ function renderSales() {
 }
 
 async function updateOrder(order, action) {
+  if (action === "cancel") {
+    const ok = await confirmAction({
+      title: "Cancel this customer's order?",
+      message: `${order.reference} from ${order.username || "a customer"}. They will not receive it.`,
+      confirmLabel: "Cancel order",
+      danger: true,
+    });
+    if (!ok) return;
+  }
   try {
     await request(`/order/${order.id}/${action}`, { method: "POST" });
-    setAlert(`Order ${action === "fulfill" ? "fulfilled" : "cancelled"}.`, "success");
+    setAlert(
+      `${order.reference} ${action === "fulfill" ? "marked as delivered" : "cancelled"}.`,
+      "success"
+    );
     await loadStoreOrders();
   } catch (error) {
     setAlert(error.message, "error");
@@ -1121,6 +1545,7 @@ async function loadCustomerData() {
   renderCatalogue();
   renderMyOrders();
   renderMyReviews();
+  renderAccount();
 }
 
 async function loadShopkeeperData() {

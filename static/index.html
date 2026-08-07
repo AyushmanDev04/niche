@@ -95,6 +95,7 @@
           <a href="#browse" class="nav-link" data-view-link="browse" data-nav-role="customer">Browse</a>
           <a href="#orders" class="nav-link" data-view-link="orders" data-nav-role="customer">My Orders</a>
           <a href="#myreviews" class="nav-link" data-view-link="myreviews" data-nav-role="customer">My Reviews</a>
+          <a href="#account" class="nav-link" data-view-link="account" data-nav-role="customer">Account</a>
 
           <a href="#dashboard" class="nav-link" data-view-link="dashboard" data-nav-role="shopkeeper">Dashboard</a>
           <a href="#stores" class="nav-link" data-view-link="stores" data-nav-role="shopkeeper">My Stores</a>
@@ -167,9 +168,55 @@
         </section>
 
         <section id="orders" class="view" data-view="orders">
+          <div class="metrics-grid orders-metrics">
+            <article class="metric-card">
+              <span>Total orders</span>
+              <strong id="ordersTotalCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Pending</span>
+              <strong id="ordersPendingCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Delivered</span>
+              <strong id="ordersFulfilledCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Total spent</span>
+              <strong id="ordersTotalSpent">₹0.00</strong>
+            </article>
+          </div>
           <div class="panel">
             <div class="panel-heading"><h3>My Orders</h3></div>
             <div id="myOrdersTable" class="data-table empty-state">No orders yet.</div>
+          </div>
+        </section>
+
+        <section id="account" class="view" data-view="account">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading"><h3>Profile</h3></div>
+              <dl id="accountDetails" class="detail-list"></dl>
+            </section>
+            <section class="panel">
+              <div class="panel-heading"><h3>Delivery Details</h3></div>
+              <p class="panel-note">
+                Saved in this browser and filled in automatically at checkout.
+                Each order keeps its own copy, so changing this never alters a
+                past order.
+              </p>
+              <form id="deliveryForm" class="form-grid">
+                <label>
+                  Delivery address
+                  <textarea name="delivery_address" rows="3" maxlength="300" placeholder="House / street / area, city, PIN"></textarea>
+                </label>
+                <label>
+                  Contact phone
+                  <input name="contact_phone" type="tel" maxlength="20" placeholder="10-digit mobile number" />
+                </label>
+                <button type="submit">Save details</button>
+              </form>
+            </section>
           </div>
         </section>
 
@@ -356,6 +403,20 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <!-- Modal host. Replaces window.prompt/confirm, which cannot show a
+         running total, validate input, or be styled. -->
+    <div id="modalRoot" class="modal-root" hidden>
+      <div class="modal-scrim" data-modal-dismiss></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-head">
+          <h3 id="modalTitle">Confirm</h3>
+          <button class="modal-close ghost small" type="button" data-modal-dismiss aria-label="Close">✕</button>
+        </div>
+        <div id="modalBody" class="modal-body"></div>
+        <div id="modalFoot" class="modal-foot"></div>
+      </div>
     </div>
 
     <script src="./app.js"></script>

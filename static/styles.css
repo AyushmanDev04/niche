@@ -710,6 +710,7 @@ label {
   font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .data-table td {
@@ -720,9 +721,110 @@ label {
   border-bottom: 0;
 }
 
+/* Row hover: makes a wide row scannable across to its action buttons. */
+.data-table tbody tr {
+  transition: background 120ms ease;
+}
+
+.data-table tbody tr:hover {
+  background: var(--panel-soft);
+}
+
+/* Numbers right-align so decimal points line up down the column, and the
+   heading follows the cells instead of sitting left over right-set figures. */
+.col-num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.col-ref {
+  white-space: nowrap;
+}
+
+/* The action column previously had a blank header, which read as a layout
+   gap. It is now labelled, right-aligned and sized to its buttons. */
+.col-actions {
+  text-align: right !important;
+  width: 1%;
+  white-space: nowrap;
+}
+
+.order-ref {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--panel-soft);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
 .row-actions {
   display: flex;
   gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Item cell: thumbnail + name + store */
+.cell-media {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.cell-thumb {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  flex-shrink: 0;
+}
+
+.cell-thumb.placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.cell-meta {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cell-meta .muted,
+.address-line {
+  font-size: 0.79rem;
+}
+
+.address-line {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 18px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.detail-list dt {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.detail-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .status-pill {
@@ -911,6 +1013,193 @@ label {
   color: var(--muted);
   font-size: 0.88rem;
   padding: 14px 0;
+}
+
+/* ------------------------------ Modals ------------------------------ */
+
+.modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 16, 20, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.modal-card {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  animation: modal-in 140ms ease-out;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-head h3 {
+  font-size: 1.05rem;
+}
+
+.modal-close {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+}
+
+.modal-body {
+  display: grid;
+  gap: 13px;
+}
+
+.modal-message {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.modal-note {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 11px;
+}
+
+.modal-error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* A destructive confirm needs a solid, unmistakable button rather than the
+   quiet outlined `.danger` used for inline table actions. */
+button.danger-solid {
+  background: var(--danger);
+  color: #fff;
+}
+
+button.danger-solid:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+/* --------------------------- Checkout form -------------------------- */
+
+.checkout,
+.review-form {
+  display: grid;
+  gap: 13px;
+}
+
+.checkout-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: var(--panel-soft);
+  border-radius: var(--radius);
+  padding: 11px;
+}
+
+.checkout-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 7px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.checkout-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checkout-meta .muted {
+  font-size: 0.8rem;
+}
+
+.checkout-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  font-size: 0.92rem;
+}
+
+.checkout-total strong {
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.star-picker {
+  display: flex;
+  gap: 3px;
+}
+
+.star-button {
+  background: none;
+  border: 0;
+  color: var(--border);
+  font-size: 1.7rem;
+  line-height: 1;
+  min-height: 0;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: color 100ms ease, transform 100ms ease;
+}
+
+.star-button:hover {
+  transform: scale(1.12);
+}
+
+.star-button.on {
+  color: var(--warning);
+}
+
+.star-button:hover:not(:disabled) {
+  background: none;
+}
+
+.orders-metrics {
+  margin-bottom: 16px;
 }
 
 /* ---------------------------- Responsive ---------------------------- */

@@ -33,6 +33,11 @@ class PlaceOrder(MethodView):
             item_id=item.id,
             store_id=item.store_id,
             quantity=order_data.get("quantity", 1),
+            # Freeze the price now. Reading items.price at display time meant a
+            # later price edit rewrote the value of orders already placed.
+            unit_price=item.price,
+            delivery_address=(order_data.get("delivery_address") or None),
+            contact_phone=(order_data.get("contact_phone") or None),
             status="pending",
         )
         try:
@@ -40,7 +45,7 @@ class PlaceOrder(MethodView):
             db.session.flush()
             log_activity(
                 "place_order",
-                details=f"ordered {order.quantity} x '{item.name}' (order id={order.id})",
+                details=f"{order.reference}: {order.quantity} x '{item.name}' = {order.total}",
             )
             db.session.commit()
         except SQLAlchemyError:
@@ -99,7 +104,7 @@ class FulfillOrder(MethodView):
             abort(400, message=f"Order is already {order.status}.")
 
         order.status = "fulfilled"
-        log_activity("fulfill_order", details=f"fulfilled order id={order.id}")
+        log_activity("fulfill_order", details=f"fulfilled {order.reference}")
         db.session.commit()
         return order
 
@@ -119,6 +124,6 @@ class CancelOrder(MethodView):
             abort(400, message=f"Order is already {order.status}.")
 
         order.status = "cancelled"
-        log_activity("cancel_order", details=f"cancelled order id={order.id}")
+        log_activity("cancel_order", details=f"cancelled {order.reference}")
         db.session.commit()
         return order

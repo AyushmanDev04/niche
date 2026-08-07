@@ -185,15 +185,34 @@ class ActivityLogSchema(Schema):
 class PlaceOrderSchema(Schema):
     # Without the range check, negative quantities were accepted.
     quantity = fields.Int(load_default=1, validate=validate.Range(min=1, max=1000))
+    # A local shop cannot deliver without these. Optional at the API level so
+    # existing integrations keep working, but the checkout form requires them.
+    delivery_address = fields.Str(
+        load_default=None, allow_none=True, validate=validate.Length(max=300)
+    )
+    contact_phone = fields.Str(
+        load_default=None, allow_none=True, validate=validate.Length(max=20)
+    )
 
 
 class OrderSchema(Schema):
     id = fields.Int(dump_only=True)
+    # Quotable order number for receipts and support ("ORD-00042").
+    reference = fields.Str(dump_only=True)
     user_id = fields.Int(dump_only=True)
     username = fields.Str(dump_only=True, attribute="user.username")
     item_id = fields.Int(dump_only=True)
     item = fields.Nested(PlainItemSchema(), dump_only=True)
     store_id = fields.Int(dump_only=True)
+    store_name = fields.Str(dump_only=True, attribute="store.name")
     quantity = fields.Int(dump_only=True)
+    # Price paid per unit, frozen at checkout — not the item's current price.
+    unit_price = fields.Function(
+        lambda order: None if order.unit_price is None else round(float(order.unit_price), 2),
+        dump_only=True,
+    )
+    total = fields.Float(dump_only=True)
     status = fields.Str(dump_only=True)
+    delivery_address = fields.Str(dump_only=True)
+    contact_phone = fields.Str(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
