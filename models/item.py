@@ -4,8 +4,6 @@ from db import db
 class ItemModel(db.Model):
     __tablename__ = "items"
     __table_args__ = (
-        # Item names are unique *within a store*, not globally. A global unique
-        # constraint would stop two different stores both selling "Coffee".
         db.UniqueConstraint("store_id", "name", name="uq_item_store_name"),
         db.CheckConstraint("stock_quantity IS NULL OR stock_quantity >= 0", name="ck_item_stock_nonneg"),
     )
@@ -26,8 +24,6 @@ class ItemModel(db.Model):
     reviews = db.relationship(
         "ReviewModel", back_populates="item", cascade="all, delete-orphan"
     )
-    # orders.item_id is NOT NULL; without this cascade, deleting an item that
-    # has ever been ordered raises a foreign key violation on Postgres.
     orders = db.relationship(
         "OrderModel", back_populates="item", cascade="all, delete-orphan"
     )

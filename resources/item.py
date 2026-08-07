@@ -19,7 +19,6 @@ class Item(MethodView):
     @blp.response(200, ItemSchema)
     def get(self, item_id):
         item = ItemModel.query.get_or_404(item_id)
-        # Hiding an item should hide it from customers, not just from lists.
         if item.is_hidden and not can_work_store(item.store):
             abort(404, message="Item not found.")
         return item
@@ -42,8 +41,6 @@ class Item(MethodView):
         if not can_work_store(item.store):
             abort(403, message="You do not have permission to edit this item.")
 
-        # Previously only name and price were applied, so an image_url edit
-        # returned 200 and silently changed nothing.
         for field in ("name", "price", "image_url", "stock_quantity"):
             if field in item_data:
                 setattr(item, field, item_data[field])
@@ -95,16 +92,12 @@ class ItemList(MethodView):
     @jwt_required()
     @blp.response(200, ItemSchema(many=True))
     def get(self):
-        # joinedload/selectinload prevent a query per item for store, tags and
-        # reviews while serialising (the response nests all three).
         query = ItemModel.query.options(
             joinedload(ItemModel.store),
             selectinload(ItemModel.tags),
             selectinload(ItemModel.reviews),
         )
 
-        # Hidden items are visible only to people who can work the store that
-        # owns them; everyone else gets the public catalogue.
         items = query.all()
         return [item for item in items if not item.is_hidden or can_work_store(item.store)]
 
@@ -112,7 +105,6 @@ class ItemList(MethodView):
     @blp.arguments(ItemSchema)
     @blp.response(201, ItemSchema)
     def post(self, item_data):
-        # Customers cannot sell.
         require_shopkeeper()
         store = StoreModel.query.get_or_404(item_data["store_id"])
         if not can_work_store(store):

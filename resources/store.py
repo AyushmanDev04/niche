@@ -44,9 +44,7 @@ class StoreList(MethodView):
     @blp.arguments(StoreSchema)
     @blp.response(201, StoreSchema)
     def post(self, store_data):
-        # Customers cannot sell.
         require_shopkeeper()
-        # get_jwt_identity() returns a string; owner_id is an integer column.
         store = StoreModel(**store_data, owner_id=int(get_jwt_identity()))
         try:
             db.session.add(store)
@@ -95,8 +93,6 @@ class StoreReviews(MethodView):
         for review in reviews:
             breakdown[str(review.rating)] += 1
 
-        # Per-item averages come straight from the aggregate columns, so this
-        # does not re-scan the reviews table for each item.
         per_item = [
             {
                 "item_id": item.id,
@@ -132,8 +128,6 @@ class StoreWorkers(MethodView):
         if not user:
             abort(404, message="No user with that username.")
 
-        # Workers sell on the store's behalf, so a customer account cannot be
-        # one — that would be a back door around "customers cannot sell".
         if not user.is_shopkeeper:
             abort(
                 400,

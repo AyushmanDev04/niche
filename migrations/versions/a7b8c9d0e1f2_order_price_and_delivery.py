@@ -34,7 +34,6 @@ def upgrade():
         batch_op.add_column(sa.Column("delivery_address", sa.String(length=300), nullable=True))
         batch_op.add_column(sa.Column("contact_phone", sa.String(length=20), nullable=True))
 
-    # Best-effort backfill for orders placed before prices were recorded.
     op.execute(
         """
         UPDATE orders

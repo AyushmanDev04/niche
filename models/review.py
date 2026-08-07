@@ -5,8 +5,6 @@ from db import db
 class ReviewModel(db.Model):
     __tablename__ = "reviews"
     __table_args__ = (
-        # One review per user per item. Without this a single account could
-        # post unlimited reviews and skew an item's average rating.
         db.UniqueConstraint("user_id", "item_id", name="uq_review_user_item"),
     )
 

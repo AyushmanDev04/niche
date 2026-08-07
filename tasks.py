@@ -122,7 +122,7 @@ def send_order_confirmation_email(self, order_id):
     if has_app_context():
         try:
             _send_order_confirmation(order_id)
-        except Exception:  # noqa: BLE001 — an email failure must never fail checkout
+        except Exception:  # noqa: BLE001
             logger.exception(
                 "send_order_confirmation_email failed for order %s (eager mode, not retrying)",
                 order_id,
@@ -133,6 +133,6 @@ def send_order_confirmation_email(self, order_id):
     with app.app_context():
         try:
             _send_order_confirmation(order_id)
-        except Exception as exc:  # noqa: BLE001 — any transport failure should retry, not crash the worker
+        except Exception as exc:  # noqa: BLE001
             logger.exception("send_order_confirmation_email failed for order %s", order_id)
             raise self.retry(exc=exc)

@@ -72,8 +72,6 @@ class UserRegister(MethodView):
 
 @blp.route("/login")
 class UserLogin(MethodView):
-    # Brute-force protection. pbkdf2 makes each guess expensive but does not
-    # cap how many an attacker gets to make.
     decorators = [limiter.limit("10 per minute; 50 per hour")]
 
     @blp.arguments(LoginSchema)
@@ -88,9 +86,6 @@ class UserLogin(MethodView):
         if user.is_banned:
             abort(403, message="This account has been banned.")
 
-        # The login form has a customer/shopkeeper tab. If one was chosen, say
-        # plainly that the account is the other kind rather than signing them
-        # into a console where half the actions would fail with a 403.
         requested_role = user_data.get("role")
         if requested_role and user.role != requested_role and not user.is_admin:
             abort(
@@ -140,9 +135,6 @@ class GoogleLogin(MethodView):
         google_id = idinfo["sub"]
         email = idinfo.get("email")
 
-        # Only trust the email for account linking if Google says it is
-        # verified; otherwise an unverified address could be used to take over
-        # an existing account.
         email_verified = bool(idinfo.get("email_verified"))
 
         user = UserModel.query.filter_by(google_id=google_id).first()
@@ -171,8 +163,6 @@ class GoogleLogin(MethodView):
             db.session.add(user)
             is_new = True
 
-        # Check the ban before issuing anything, and before committing a login
-        # record for an account that is not allowed in.
         if user.is_banned:
             db.session.rollback()
             abort(403, message="This account has been banned.")
@@ -206,7 +196,6 @@ class TokenRefresh(MethodView):
     def post(self):
         current_user = get_jwt_identity()
         new_token = create_access_token(identity=current_user, fresh=False)
-        # Refresh tokens are single-use: the one just spent is revoked.
         add_to_blocklist(get_jwt())
         db.session.commit()
         return {"access_token": new_token}
@@ -281,7 +270,6 @@ class User(MethodView):
     @jwt_required()
     @blp.response(200, UserSchema)
     def get(self, user_id):
-        # Users may read their own record; everyone else needs admin.
         if str(user_id) != str(get_jwt_identity()):
             _require_admin()
         return UserModel.query.get_or_404(user_id)
@@ -298,8 +286,6 @@ class User(MethodView):
             store.owner_id = None
 
         log_activity("delete_user", details=f"deleted account '{user.username}' (id={user.id})")
-        # Orders and reviews cascade via the relationships on UserModel;
-        # activity_logs keep their username snapshot with a null user_id.
         db.session.delete(user)
         db.session.commit()
         return {"message": "User deleted."}, 200
@@ -311,7 +297,6 @@ class UserList(MethodView):
     @blp.response(200, UserAdminSchema(many=True))
     def get(self):
         _require_admin()
-        # joinedload avoids one extra query per user to fetch their stores.
         return UserModel.query.options(joinedload(UserModel.stores)).all()
 
 
@@ -375,8 +360,3 @@ class UserActivity(MethodView):
         )
 
 
-# The /make-admin/<username> endpoint was removed. It granted admin to any
-# account to anyone holding a shared header secret, with no JWT, no rate limit,
-# no audit entry and a non-constant-time comparison. Admin bootstrapping is
-# handled by `flask bootstrap-admin` (see cli.py), and existing admins can
-# promote others through the normal admin endpoints.

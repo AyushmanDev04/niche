@@ -28,8 +28,6 @@ class TagsInStore(MethodView):
         if not can_work_store(store):
             abort(403, message="You do not have permission to add tags to this store.")
 
-        # store_id comes from the URL; ignore any value in the body so a caller
-        # cannot create a tag against a store they just passed the check for.
         tag_data.pop("store_id", None)
         tag = TagModel(**tag_data, store_id=store_id)
 
@@ -59,8 +57,6 @@ class LinkTagsToItem(MethodView):
         if not can_work_store(item.store):
             abort(403, message="You do not have permission to tag this item.")
 
-        # A tag belongs to one store; linking it to another store's item would
-        # leak that store's taxonomy and let tags cross tenant boundaries.
         if tag.store_id != item.store_id:
             abort(400, message="Tag and item must belong to the same store.")
 

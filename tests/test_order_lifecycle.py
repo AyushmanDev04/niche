@@ -15,7 +15,7 @@ class TestHappyPath:
             (OrderStatus.OUT_FOR_DELIVERY, OrderStatus.COMPLETED),
         ]
         for current, target in path:
-            assert_transition(current, target, actor="shop")  # must not raise
+            assert_transition(current, target, actor="shop")
 
     def test_customer_can_cancel_while_pending(self):
         assert_transition(OrderStatus.PENDING, OrderStatus.CANCELLED, actor="customer")

@@ -31,8 +31,6 @@ def upgrade():
             )
         )
 
-    # Backfill from behaviour already recorded in the data: if an account owns
-    # a store or is listed as a worker, it was being used as a seller.
     op.execute(
         """
         UPDATE users SET role = 'shopkeeper'

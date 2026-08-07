@@ -2,18 +2,12 @@ services:
   web:
     build: .
     ports:
-      # gunicorn listens on $PORT inside the container (default 5000).
       - "5000:5000"
     volumes:
-      # Whole-project mount for live reload during development. This is a dev
-      # convenience only — the built image excludes .env, databases and the
-      # local virtualenv via .dockerignore.
       - .:/app
     env_file:
       - ./.env
     environment:
-      # Overrides DATABASE_URL from .env so local work never touches the
-      # production database by accident.
       - DATABASE_URL=postgresql://postgres:password@db:5432/myapp
       - CORS_ORIGINS=http://localhost:5000
       - PORT=5000
@@ -51,8 +45,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      # `depends_on` alone only waits for the container to start, not for
-      # Postgres to accept connections, so the web service could race it.
       test: ["CMD-SHELL", "pg_isready -U postgres -d myapp"]
       interval: 3s
       timeout: 5s

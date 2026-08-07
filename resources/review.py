@@ -15,9 +15,6 @@ blp = Blueprint("Reviews", "reviews", description="Operations on reviews")
 
 @blp.route("/item/<int:item_id>/review")
 class ItemReviewList(MethodView):
-    # Reading reviews stays public, but `optional=True` means a signed-in
-    # staff member is still recognised — needed to decide whether a hidden
-    # item is visible to this caller.
     @jwt_required(optional=True)
     @blp.response(200, ReviewSchema(many=True))
     def get(self, item_id):
@@ -35,8 +32,6 @@ class ItemReviewList(MethodView):
     @blp.arguments(ReviewSchema)
     @blp.response(201, ReviewSchema)
     def post(self, review_data, item_id):
-        # Only customers review. A shopkeeper rating the catalogue they sell
-        # into would distort the ratings their competitors are judged by.
         require_customer()
 
         item = ItemModel.query.get_or_404(item_id)
@@ -49,7 +44,6 @@ class ItemReviewList(MethodView):
             rating=review_data["rating"],
             comment=review_data.get("comment"),
             item_id=item_id,
-            # get_jwt_identity() is a string; the column is an integer.
             user_id=int(user_id),
         )
 
@@ -76,9 +70,6 @@ class Review(MethodView):
         user_id = get_jwt_identity()
 
         is_author = str(review.user_id) == str(user_id)
-        # Admins can moderate; previously an abusive review could only be
-        # removed by the account that posted it. Note shopkeepers deliberately
-        # cannot delete reviews of their own products.
         if not is_author and not is_admin():
             abort(403, message="You can only delete your own review.")
 

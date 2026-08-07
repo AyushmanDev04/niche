@@ -25,8 +25,6 @@ def add_to_blocklist(jwt_payload):
     exp = jwt_payload.get("exp")
     expires_at = datetime.utcfromtimestamp(exp) if exp else None
 
-    # A token can be revoked twice (e.g. logout called on an already-revoked
-    # token); the unique index would reject the duplicate, so skip it.
     if db.session.query(
         TokenBlocklistModel.query.filter_by(jti=jti).exists()
     ).scalar():

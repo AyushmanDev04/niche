@@ -50,8 +50,6 @@ def bootstrap_admin():
             username=username,
             password=pbkdf2_sha256.hash(password),
             is_admin=True,
-            # Admins run the selling side of the console, so give them the
-            # matching role rather than leaving the "customer" default.
             role=Role.SHOPKEEPER,
         )
     )

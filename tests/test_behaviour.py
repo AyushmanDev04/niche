@@ -55,7 +55,6 @@ class TestHiddenItems:
         listed = client.get("/item", headers=shopper).get_json()
         assert [i for i in listed if i["id"] == item["id"]] == []
 
-        # ...and cannot be fetched directly either.
         assert client.get(f"/item/{item['id']}", headers=shopper).status_code == 404
 
     def test_staff_still_see_hidden_items(self, client, auth):
@@ -150,7 +149,6 @@ class TestCascadingDeletes:
             f"/item/{item['id']}/review", json={"rating": 4}, headers=shopper
         ).status_code == 201
 
-        # A fresh token is required to delete a user.
         response = client.delete(f"/user/{shopper_id}", headers=admin)
         assert response.status_code == 200, response.get_json()
 
@@ -169,7 +167,6 @@ class TestCascadingDeletes:
         client.delete(f"/user/{victim_id}", headers=admin)
 
         feed = client.get("/activity", headers=admin).get_json()
-        # The username snapshot is the whole point of storing it.
         assert any(entry.get("username") == "victim" for entry in feed)
 
 

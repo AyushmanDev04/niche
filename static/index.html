@@ -7,10 +7,7 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <!-- ============================ AUTH GATE ============================ -->
-    <!-- Shown while signed out. The role choice here decides the whole
-         console: a customer never sees selling tools, a shopkeeper never
-         sees the review form. -->
+
     <div id="authGate" class="auth-gate">
       <div class="auth-card">
         <div class="auth-brand">
@@ -77,7 +74,6 @@
       </div>
     </div>
 
-    <!-- ============================ CONSOLE ============================ -->
     <div id="sidebarScrim" class="sidebar-scrim" aria-hidden="true"></div>
     <div id="appShell" class="app-shell" hidden>
       <aside id="mainSidebar" class="sidebar">
@@ -90,8 +86,7 @@
         </div>
 
         <nav class="nav-list" aria-label="Main navigation">
-          <!-- data-nav-role gates each link: "customer", "shopkeeper",
-               "admin", or absent for everyone. -->
+
           <a href="#browse" class="nav-link" data-view-link="browse" data-nav-role="customer">Browse</a>
           <a href="#orders" class="nav-link" data-view-link="orders" data-nav-role="customer">My Orders</a>
           <a href="#myreviews" class="nav-link" data-view-link="myreviews" data-nav-role="customer">My Reviews</a>
@@ -135,8 +130,6 @@
         </header>
 
         <section id="alertRegion" class="alert-region" aria-live="polite"></section>
-
-        <!-- ---------------------- CUSTOMER VIEWS ---------------------- -->
 
         <section id="browse" class="view" data-view="browse">
           <div class="metrics-grid">
@@ -247,8 +240,6 @@
             <div id="myReviewsTable" class="data-table empty-state">You have not reviewed anything yet.</div>
           </div>
         </section>
-
-        <!-- --------------------- SHOPKEEPER VIEWS --------------------- -->
 
         <section id="dashboard" class="view" data-view="dashboard">
           <div class="metrics-grid">
@@ -411,8 +402,6 @@
           </div>
         </section>
 
-        <!-- ------------------------ ADMIN VIEWS ------------------------ -->
-
         <section id="admin" class="view" data-view="admin">
           <div class="panel">
             <div class="panel-heading"><h3>Users</h3></div>
@@ -429,8 +418,6 @@
       </main>
     </div>
 
-    <!-- Modal host. Replaces window.prompt/confirm, which cannot show a
-         running total, validate input, or be styled. -->
     <div id="modalRoot" class="modal-root" hidden>
       <div class="modal-scrim" data-modal-dismiss></div>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">

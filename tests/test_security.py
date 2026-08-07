@@ -30,8 +30,6 @@ class TestSecretConfig:
 class TestMakeAdminBackdoor:
     def test_endpoint_is_gone(self, client):
         response = client.post("/make-admin/someone")
-        # 405: the path now falls through to the static handler, which is
-        # GET-only. Either way there is no promotion endpoint left.
         assert response.status_code in (404, 405)
 
 
@@ -87,8 +85,6 @@ class TestLogoutPersistence:
 
         assert client.post("/logout", headers=headers).status_code == 200
 
-        # The blocklist used to be an in-process set, so this still returned 200
-        # in any worker that had not handled the logout.
         assert client.get("/store", headers=headers).status_code == 401
 
 

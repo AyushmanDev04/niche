@@ -38,27 +38,18 @@ class UserModel(db.Model):
 
     @property
     def is_shopkeeper(self):
-        # Admins can act on the selling side for moderation purposes.
         return self.role == Role.SHOPKEEPER or self.is_admin
 
     @property
     def is_customer(self):
-        # Note: NOT widened to admins. Letting an admin post reviews would
-        # undermine the "sellers cannot review" rule just as much.
         return self.role == Role.CUSTOMER
 
-    # Stores this user owns.
     stores = db.relationship("StoreModel", back_populates="owner")
 
-    # Stores this user works at (as a worker, not owner).
     worked_stores = db.relationship(
         "StoreModel", secondary="store_workers", back_populates="workers"
     )
 
-    # reviews.user_id and orders.user_id are NOT NULL, so these rows have to go
-    # when the user does — otherwise deleting a user raises a foreign key
-    # violation on Postgres. Cascade is handled by the ORM (it deletes children
-    # first), so no database-level ON DELETE is required.
     reviews = db.relationship(
         "ReviewModel", back_populates="user", cascade="all, delete-orphan"
     )
@@ -66,9 +57,6 @@ class UserModel(db.Model):
         "OrderModel", back_populates="user", cascade="all, delete-orphan"
     )
 
-    # Activity logs deliberately outlive the account: activity_logs.user_id is
-    # nullable and each row snapshots the username, so the audit trail survives.
-    # No cascade here — SQLAlchemy nulls the foreign key instead.
     activity_logs = db.relationship("ActivityLogModel", back_populates="user")
 
     profile = db.relationship(

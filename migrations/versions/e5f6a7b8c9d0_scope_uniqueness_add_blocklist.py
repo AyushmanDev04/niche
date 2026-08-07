@@ -32,7 +32,6 @@ branch_labels = None
 depends_on = None
 
 
-# Lets batch mode address a constraint that was created without a name.
 NAMING_CONVENTION = {
     "uq": "uq_%(table_name)s_%(column_0_name)s",
     "ix": "ix_%(table_name)s_%(column_0_name)s",
@@ -48,8 +47,6 @@ def _single_column_unique_names(table, column):
         if list(constraint.get("column_names") or []) == [column]:
             names.append(constraint.get("name"))
 
-    # SQLite surfaces an inline `UNIQUE (col)` as a unique index rather than a
-    # named constraint, so check indexes too.
     for index in inspector.get_indexes(table):
         if index.get("unique") and list(index.get("column_names") or []) == [column]:
             name = index.get("name")
@@ -64,7 +61,6 @@ def _drop_column_unique(table, column):
 
     with op.batch_alter_table(table, naming_convention=NAMING_CONVENTION) as batch_op:
         if not names:
-            # Unnamed on SQLite: the naming convention resolves it.
             batch_op.drop_constraint(f"uq_{table}_{column}", type_="unique")
             return
         for name in names:
@@ -75,31 +71,23 @@ def _drop_column_unique(table, column):
 
 
 def upgrade():
-    # 0. items.image_url exists on the model but was never migrated, so a
-    #    database built purely from migrations (i.e. Render's Postgres) has no
-    #    such column and every item query fails with "column does not exist".
-    #    This was being masked by db.create_all() running at start-up.
     if "image_url" not in {
         column["name"] for column in inspect(op.get_bind()).get_columns("items")
     }:
         with op.batch_alter_table("items") as batch_op:
             batch_op.add_column(sa.Column("image_url", sa.String(length=500), nullable=True))
 
-    # 1. Item names: globally unique -> unique per store.
     _drop_column_unique("items", "name")
     with op.batch_alter_table("items") as batch_op:
         batch_op.create_unique_constraint("uq_item_store_name", ["store_id", "name"])
 
-    # 2. Tag names: globally unique -> unique per store.
     _drop_column_unique("tags", "name")
     with op.batch_alter_table("tags") as batch_op:
         batch_op.create_unique_constraint("uq_tag_store_name", ["store_id", "name"])
 
-    # 3. One review per user per item.
     with op.batch_alter_table("reviews") as batch_op:
         batch_op.create_unique_constraint("uq_review_user_item", ["user_id", "item_id"])
 
-    # 4. Persistent revoked-token store.
     op.create_table(
         "token_blocklist",
         sa.Column("id", sa.Integer(), nullable=False),

@@ -30,10 +30,6 @@ def is_shopkeeper():
 
 
 def is_customer():
-    # `and not is_admin()` matters: an admin account still carries an
-    # underlying role, and one created with role="customer" would otherwise be
-    # able to post reviews. Admins moderate the marketplace rather than
-    # participating in it, so they never count as customers regardless of role.
     return current_role() == Role.CUSTOMER and not is_admin()
 
 

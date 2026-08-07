@@ -23,5 +23,3 @@ def log_activity(action, details=None, user_id=None):
         user_id=user_id, username=username, action=action, details=details
     )
     db.session.add(entry)
-    # Caller is expected to db.session.commit() as part of its own
-    # transaction; we don't commit here to avoid partial-write issues.

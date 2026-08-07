@@ -24,7 +24,6 @@ class StoreModel(db.Model):
     workers = db.relationship(
         "UserModel", secondary="store_workers", back_populates="worked_stores"
     )
-    # orders.store_id is NOT NULL, so a store's orders must go with it.
     orders = db.relationship(
         "OrderModel", back_populates="store", cascade="all, delete-orphan"
     )

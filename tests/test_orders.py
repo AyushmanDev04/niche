@@ -25,7 +25,6 @@ class TestOrderPricing:
         assert order["unit_price"] == 10.0
         assert order["total"] == 30.0
 
-        # Shopkeeper doubles the price after the sale.
         assert client.put(
             f"/item/{item['id']}", json={"price": 20.0}, headers=owner
         ).status_code == 200

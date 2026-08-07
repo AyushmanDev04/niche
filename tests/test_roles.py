@@ -153,7 +153,6 @@ class TestAggregateRatings:
 
     def test_average_is_a_float_not_an_integer(self, client, auth):
         owner, _, item = _shop_with_item(client, auth)
-        # 5, 4, 4 -> 4.333... which must not be truncated to 4.
         for index, rating in enumerate((5, 4, 4)):
             self._review(client, auth, item, f"buyer{index}", rating)
 
@@ -207,7 +206,6 @@ class TestShopkeeperReviewView:
         comments = {review["comment"] for review in summary["reviews"]}
         assert comments == {"Excellent", "Good", "Nice"}
 
-        # Each review names its author and item for the shopkeeper.
         assert all(review["username"] for review in summary["reviews"])
         assert all(review["item_name"] == "Widget" for review in summary["reviews"])
 

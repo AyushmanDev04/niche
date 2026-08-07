@@ -3,7 +3,6 @@ import tempfile
 
 import pytest
 
-# create_app() refuses to start without these, so set them before importing it.
 os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 
@@ -32,7 +31,6 @@ def app():
     from rate_limit import limiter
 
     application = create_app()
-    # Rate limits would reject the repeated logins these tests perform.
     limiter.enabled = False
 
     with application.app_context():

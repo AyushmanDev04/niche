@@ -4,8 +4,6 @@ from db import db
 class TagModel(db.Model):
     __tablename__ = "tags"
     __table_args__ = (
-        # Tag names are unique per store, not globally — otherwise the first
-        # store to create a "sale" tag blocks every other store from having one.
         db.UniqueConstraint("store_id", "name", name="uq_tag_store_name"),
     )
 

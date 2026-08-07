@@ -105,8 +105,6 @@ class PlaceOrder(MethodView):
             item_id=item.id,
             store_id=item.store_id,
             quantity=quantity,
-            # Freeze the price now. Reading items.price at display time meant a
-            # later price edit rewrote the value of orders already placed.
             unit_price=item.price,
             delivery_address=address or None,
             contact_phone=phone or None,
@@ -127,7 +125,7 @@ class PlaceOrder(MethodView):
 
         try:
             send_order_confirmation_email.delay(order.id)
-        except Exception:  # noqa: BLE001 — see comment above: never fail checkout for this
+        except Exception:  # noqa: BLE001
             logger.exception("Could not enqueue confirmation email for %s", order.reference)
 
         return order

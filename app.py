@@ -37,9 +37,6 @@ def _require_env(name):
 
 
 def create_app():
-    # The frontend lives in static/ and *only* static/ is web-reachable.
-    # This used to be static_folder="." which served the entire project root,
-    # meaning /.env, /data.db and /app.py were all downloadable by anyone.
     app = Flask(__name__, static_folder="static", static_url_path="")
 
     app.config["PROPAGATE_EXCEPTIONS"] = True
@@ -65,8 +62,6 @@ def create_app():
     api = Api(app)
     limiter.init_app(app)
 
-    # Only allow browsers on origins we name. `CORS(app)` allowed every site on
-    # the internet to call this API with a logged-in user's credentials.
     origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
     CORS(app, origins=origins or ["http://localhost:5000"], supports_credentials=False)
 
@@ -76,10 +71,6 @@ def create_app():
     def check_if_token_in_blocklist(jwt_header, jwt_payload):
         if is_revoked(jwt_payload.get("jti")):
             return True
-        # A ban has to take effect immediately, including for tokens already
-        # issued, so this costs one indexed primary-key lookup per request.
-        # (add_claims_to_jwt below is not in this path — flask-jwt-extended
-        # only calls it when a token is created.)
         user = db.session.get(UserModel, int(jwt_payload["sub"]))
         return bool(user and user.is_banned)
 
@@ -107,8 +98,6 @@ def create_app():
     @jwt.additional_claims_loader
     def add_claims_to_jwt(identity):
         user = db.session.get(UserModel, int(identity))
-        # role travels in the token so customer/shopkeeper checks don't need a
-        # database round trip on every request.
         return {
             "is_admin": bool(user and user.is_admin),
             "role": user.role if user else None,
@@ -151,19 +140,12 @@ def create_app():
 
     register_cli(app)
 
-    # NOTE: schema creation is owned by Alembic, not by the app.
-    # db.create_all() here would build tables without stamping alembic_version,
-    # after which every `flask db upgrade` fails on already-existing tables.
-    # Run migrations on deploy instead: `flask db upgrade && flask bootstrap-admin`.
-
     @app.route("/health")
     def health():
         return jsonify({"status": "ok"}), 200
 
     @app.route("/config")
     def config():
-        # Public by design: a Google client ID is not a secret, the frontend
-        # needs it to render the sign-in button.
         return jsonify({"google_client_id": os.getenv("GOOGLE_CLIENT_ID", "")}), 200
 
     @app.route("/")
