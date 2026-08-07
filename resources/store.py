@@ -16,9 +16,10 @@ blp = Blueprint("stores", __name__, description="Operations on stores")
 
 @blp.route("/store/<int:store_id>")
 class Store(MethodView):
-    @jwt_required()
+    @jwt_required(optional=True)
     @blp.response(200, StoreSchema)
     def get(self, store_id):
+        """Public. Storefronts are browsable without an account."""
         store = StoreModel.query.get_or_404(store_id)
         return store
 
@@ -35,9 +36,10 @@ class Store(MethodView):
 
 @blp.route("/store")
 class StoreList(MethodView):
-    @jwt_required()
+    @jwt_required(optional=True)
     @blp.response(200, StoreSchema(many=True))
     def get(self):
+        """Public, like GET /store/<id>."""
         return StoreModel.query.all()
 
     @jwt_required()

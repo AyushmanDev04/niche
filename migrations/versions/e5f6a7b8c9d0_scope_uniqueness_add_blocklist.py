@@ -19,6 +19,12 @@ depending on how the database was built: Alembic named some of them, while
 `db.create_all()` left them unnamed (SQLite) or auto-named `<table>_<col>_key`
 (PostgreSQL). Rather than guess, this migration inspects the live schema and
 drops whichever single-column unique constraint or index actually exists.
+
+The items half of change 1 is now conditional. Revision cd185f0003d1 was
+corrected to create uq_item_store_name directly, so a database migrated from
+scratch arrives here with nothing to drop and the constraint already in
+place, while one built by the old cd185f0003d1 still needs the repair. Both
+paths are checked against the live schema rather than assumed.
 """
 
 from alembic import op
@@ -56,8 +62,25 @@ def _single_column_unique_names(table, column):
     return names
 
 
-def _drop_column_unique(table, column):
+def _has_unique(table, columns):
+    """True if some unique constraint already covers exactly `columns`."""
+    inspector = inspect(op.get_bind())
+    return any(
+        list(constraint.get("column_names") or []) == list(columns)
+        for constraint in inspector.get_unique_constraints(table)
+    )
+
+
+def _drop_column_unique(table, column, required=True):
+    """Drop the single-column unique on `table.column`.
+
+    With `required=False`, finding nothing is not an error — the constraint
+    was never created on this database, so there is nothing to repair.
+    """
     names = _single_column_unique_names(table, column)
+
+    if not names and not required:
+        return
 
     with op.batch_alter_table(table, naming_convention=NAMING_CONVENTION) as batch_op:
         if not names:
@@ -77,9 +100,10 @@ def upgrade():
         with op.batch_alter_table("items") as batch_op:
             batch_op.add_column(sa.Column("image_url", sa.String(length=500), nullable=True))
 
-    _drop_column_unique("items", "name")
-    with op.batch_alter_table("items") as batch_op:
-        batch_op.create_unique_constraint("uq_item_store_name", ["store_id", "name"])
+    _drop_column_unique("items", "name", required=False)
+    if not _has_unique("items", ["store_id", "name"]):
+        with op.batch_alter_table("items") as batch_op:
+            batch_op.create_unique_constraint("uq_item_store_name", ["store_id", "name"])
 
     _drop_column_unique("tags", "name")
     with op.batch_alter_table("tags") as batch_op:
@@ -102,6 +126,8 @@ def upgrade():
 
 
 def downgrade():
+    """Note that items is untouched here: uq_item_store_name now belongs to
+    cd185f0003d1, which drops it in its own downgrade."""
     with op.batch_alter_table("token_blocklist") as batch_op:
         batch_op.drop_index("ix_token_blocklist_jti")
     op.drop_table("token_blocklist")
@@ -112,7 +138,3 @@ def downgrade():
     with op.batch_alter_table("tags") as batch_op:
         batch_op.drop_constraint("uq_tag_store_name", type_="unique")
         batch_op.create_unique_constraint("uq_tags_name", ["name"])
-
-    with op.batch_alter_table("items") as batch_op:
-        batch_op.drop_constraint("uq_item_store_name", type_="unique")
-        batch_op.create_unique_constraint("uq_items_name", ["name"])

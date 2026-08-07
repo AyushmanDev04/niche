@@ -15,9 +15,11 @@ blp = Blueprint("Items", "items", description="Operations on items")
 
 @blp.route("/item/<int:item_id>")
 class Item(MethodView):
-    @jwt_required()
+    @jwt_required(optional=True)
     @blp.response(200, ItemSchema)
     def get(self, item_id):
+        """Public. Browsing the catalogue does not require an account —
+        only hidden items are withheld, and only from non-staff."""
         item = ItemModel.query.get_or_404(item_id)
         if item.is_hidden and not can_work_store(item.store):
             abort(404, message="Item not found.")
@@ -89,9 +91,10 @@ class UnhideItem(MethodView):
 
 @blp.route("/item")
 class ItemList(MethodView):
-    @jwt_required()
+    @jwt_required(optional=True)
     @blp.response(200, ItemSchema(many=True))
     def get(self):
+        """Public, like GET /item/<id> and GET /item/<id>/review."""
         query = ItemModel.query.options(
             joinedload(ItemModel.store),
             selectinload(ItemModel.tags),

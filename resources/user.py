@@ -45,9 +45,11 @@ class UserRegister(MethodView):
     @blp.arguments(UserRegisterSchema)
     def post(self, user_data):
         role = user_data.get("role", Role.CUSTOMER)
+        email = (user_data.get("email") or "").strip() or None
         user = UserModel(
             username=user_data["username"],
             password=pbkdf2_sha256.hash(user_data["password"]),
+            email=email,
             role=role,
             public_ref=generate_unique_ref(UserModel, "public_ref", "CUST"),
         )
@@ -194,11 +196,19 @@ class GoogleLogin(MethodView):
 class TokenRefresh(MethodView):
     @jwt_required(refresh=True)
     def post(self):
+        """Exchange a refresh token for a new access token and a new refresh token.
+
+        The refresh token is rotated, not just consumed: this endpoint revokes
+        the one it was called with, so returning only an access token left the
+        client holding a dead refresh token and silently logged out as soon as
+        the new access token expired.
+        """
         current_user = get_jwt_identity()
-        new_token = create_access_token(identity=current_user, fresh=False)
+        access_token = create_access_token(identity=current_user, fresh=False)
+        refresh_token = create_refresh_token(identity=current_user)
         add_to_blocklist(get_jwt())
         db.session.commit()
-        return {"access_token": new_token}
+        return {"access_token": access_token, "refresh_token": refresh_token}
 
 
 @blp.route("/logout")
@@ -341,7 +351,7 @@ class ActivityFeed(MethodView):
         user_id = request.args.get("user_id", type=int)
         if user_id is not None:
             query = query.filter_by(user_id=user_id)
-        limit = min(request.args.get("limit", default=200, type=int) or 200, 1000)
+        limit = max(0, min(request.args.get("limit", default=200, type=int) or 200, 1000))
         return query.order_by(ActivityLogModel.created_at.desc()).limit(limit).all()
 
 

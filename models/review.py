@@ -1,5 +1,5 @@
-from datetime import datetime
 from db import db
+from timeutils import utcnow
 
 
 class ReviewModel(db.Model):
@@ -11,7 +11,7 @@ class ReviewModel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     rating = db.Column(db.Integer, nullable=False)
     comment = db.Column(db.String(500), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
     item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)

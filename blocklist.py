@@ -6,10 +6,9 @@ runs multiple workers, so revoking a token in one worker left every other
 worker still accepting it, and a restart cleared the set entirely.
 """
 
-from datetime import datetime
-
 from db import db
 from models import TokenBlocklistModel
+from timeutils import utc_from_timestamp, utcnow
 
 
 def add_to_blocklist(jwt_payload):
@@ -23,7 +22,7 @@ def add_to_blocklist(jwt_payload):
         return
 
     exp = jwt_payload.get("exp")
-    expires_at = datetime.utcfromtimestamp(exp) if exp else None
+    expires_at = utc_from_timestamp(exp) if exp else None
 
     if db.session.query(
         TokenBlocklistModel.query.filter_by(jti=jti).exists()
@@ -50,7 +49,7 @@ def prune_expired():
     deleted = (
         TokenBlocklistModel.query.filter(
             TokenBlocklistModel.expires_at.isnot(None),
-            TokenBlocklistModel.expires_at < datetime.utcnow(),
+            TokenBlocklistModel.expires_at < utcnow(),
         ).delete(synchronize_session=False)
     )
     return deleted

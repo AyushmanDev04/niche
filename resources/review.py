@@ -5,9 +5,10 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from db import db
-from models import ReviewModel, ItemModel
+from models import ReviewModel, ItemModel, OrderModel
 from schemas import ReviewSchema
 from resources.permissions import can_work_store, is_admin, require_customer
+from order_lifecycle import OrderStatus
 from activity_log import log_activity
 
 blp = Blueprint("Reviews", "reviews", description="Operations on reviews")
@@ -32,19 +33,40 @@ class ItemReviewList(MethodView):
     @blp.arguments(ReviewSchema)
     @blp.response(201, ReviewSchema)
     def post(self, review_data, item_id):
+        """Only a customer who actually received this item may review it.
+
+        A rating carries weight because it comes from someone who bought the
+        thing. Without the purchase check any account could rate any item —
+        a shop could bury a competitor, or inflate itself through throwaway
+        accounts, without a single order being placed.
+
+        "Received" means an order that reached `completed`: a pending or
+        cancelled one proves nothing about the product.
+        """
         require_customer()
 
         item = ItemModel.query.get_or_404(item_id)
         if item.is_hidden:
             abort(404, message="Item not found.")
 
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
+
+        has_purchased = db.session.query(
+            OrderModel.query.filter_by(
+                user_id=user_id, item_id=item_id, status=OrderStatus.COMPLETED
+            ).exists()
+        ).scalar()
+        if not has_purchased:
+            abort(
+                403,
+                message="You can only review an item after an order for it has been delivered.",
+            )
 
         review = ReviewModel(
             rating=review_data["rating"],
             comment=review_data.get("comment"),
             item_id=item_id,
-            user_id=int(user_id),
+            user_id=user_id,
         )
 
         try:

@@ -1,7 +1,6 @@
-from datetime import datetime
-
 from db import db
 from order_lifecycle import OrderStatus
+from timeutils import utcnow
 
 
 class OrderModel(db.Model):
@@ -27,9 +26,9 @@ class OrderModel(db.Model):
     delivery_address = db.Column(db.String(300), nullable=True)
     contact_phone = db.Column(db.String(20), nullable=True)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        db.DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     user = db.relationship("UserModel", back_populates="orders")

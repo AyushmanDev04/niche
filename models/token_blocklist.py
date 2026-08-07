@@ -1,5 +1,5 @@
-from datetime import datetime
 from db import db
+from timeutils import utcnow
 
 
 class TokenBlocklistModel(db.Model):
@@ -16,4 +16,4 @@ class TokenBlocklistModel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     jti = db.Column(db.String(36), nullable=False, unique=True, index=True)
     expires_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)

@@ -99,10 +99,10 @@ class TestValidation:
         )
         assert response.status_code == 422
 
-    def test_one_review_per_user_per_item(self, client, auth):
+    def test_one_review_per_user_per_item(self, client, auth, delivered_buyer):
         owner, _, _ = auth("owner", role="shopkeeper")
         _, item = _store_with_item(client, owner, "Shop", "Widget")
-        shopper, _, _ = auth("shopper")
+        shopper, _, _ = delivered_buyer(item, "shopper", owner)
 
         first = client.post(
             f"/item/{item['id']}/review", json={"rating": 5}, headers=shopper
@@ -133,7 +133,9 @@ class TestItemUpdate:
 
 
 class TestCascadingDeletes:
-    def test_deleting_a_user_with_orders_and_reviews_succeeds(self, client, auth):
+    def test_deleting_a_user_with_orders_and_reviews_succeeds(
+        self, client, auth, delivered_buyer
+    ):
         """reviews.user_id / orders.user_id are NOT NULL with no cascade, so
         this raised a foreign key violation on any database that enforces
         them (i.e. Postgres, but not SQLite by default)."""
@@ -141,10 +143,9 @@ class TestCascadingDeletes:
         owner, _, _ = auth("owner", role="shopkeeper")
         _, item = _store_with_item(client, owner, "Shop", "Widget")
 
-        shopper, shopper_id, shopper_tokens = auth("shopper")
-        assert client.post(
-            f"/item/{item['id']}/order", json={"quantity": 2}, headers=shopper
-        ).status_code == 201
+        shopper, shopper_id, shopper_tokens = delivered_buyer(
+            item, "shopper", owner, quantity=2
+        )
         assert client.post(
             f"/item/{item['id']}/review", json={"rating": 4}, headers=shopper
         ).status_code == 201
@@ -190,13 +191,48 @@ class TestTokenRefresh:
         assert client.post("/refresh", headers=refresh_headers).status_code == 200
         assert client.post("/refresh", headers=refresh_headers).status_code == 401
 
+    def test_refresh_returns_a_new_refresh_token(self, client, auth):
+        """The bug this guards: /refresh revoked the refresh token it was
+        called with but handed back only an access token, so the client was
+        left with a dead refresh token and was logged out at the next expiry."""
+        _, _, tokens = auth("someone")
+
+        body = client.post(
+            "/refresh",
+            headers={"Authorization": f"Bearer {tokens['refresh_token']}"},
+        ).get_json()
+
+        assert "refresh_token" in body, "refresh token was not rotated"
+        assert body["refresh_token"] != tokens["refresh_token"]
+
+    def test_the_rotated_refresh_token_works_for_the_next_refresh(self, client, auth):
+        """Rotation has to chain: refreshing twice in a row is the ordinary
+        case for a long session, and it is what silently broke before."""
+        _, _, tokens = auth("someone")
+
+        first = client.post(
+            "/refresh",
+            headers={"Authorization": f"Bearer {tokens['refresh_token']}"},
+        ).get_json()
+
+        second = client.post(
+            "/refresh",
+            headers={"Authorization": f"Bearer {first['refresh_token']}"},
+        )
+        assert second.status_code == 200, second.get_json()
+
+        new_access = second.get_json()["access_token"]
+        assert client.get(
+            "/me", headers={"Authorization": f"Bearer {new_access}"}
+        ).status_code == 200
+
 
 class TestReviewSerialisation:
-    def test_review_exposes_item_id(self, client, auth):
+    def test_review_exposes_item_id(self, client, auth, delivered_buyer):
         """item_id was load_only, so the frontend had to infer it."""
         owner, _, _ = auth("owner", role="shopkeeper")
         _, item = _store_with_item(client, owner, "Shop", "Widget")
-        shopper, _, _ = auth("shopper")
+        shopper, _, _ = delivered_buyer(item, "shopper", owner)
         client.post(f"/item/{item['id']}/review", json={"rating": 5}, headers=shopper)
 
         reviews = client.get(f"/item/{item['id']}/review").get_json()
