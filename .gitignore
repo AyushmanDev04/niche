@@ -1,6 +1,30 @@
+# Environments
 .venv/
+venv/
+env/
+# Accidental virtualenvs created by typo'd `python -m venv` commands
+/#/
+/if/
+/it/
+/missing/
+/create/
+
+# Python
 __pycache__/
 *.pyc
-.vscode/
-data.db
+*.pyo
+.pytest_cache/
+
+# Secrets — never commit these
 .env
+.env.*
+!.env.example
+
+# Databases
+*.db
+*.sqlite3
+instance/
+
+# Editors
+.vscode/
+.idea/

@@ -14,7 +14,8 @@ def log_activity(action, details=None, user_id=None):
 
     username = None
     if user_id is not None:
-        user = UserModel.query.get(int(user_id))
+        user_id = int(user_id)
+        user = db.session.get(UserModel, user_id)
         if user:
             username = user.username
 

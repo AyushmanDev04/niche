@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Niche</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- ============================ AUTH GATE ============================ -->
+    <!-- Shown while signed out. The role choice here decides the whole
+         console: a customer never sees selling tools, a shopkeeper never
+         sees the review form. -->
+    <div id="authGate" class="auth-gate">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <img src="./assets/logo.png" alt="" class="brand-mark" />
+          <div>
+            <h1>Niche</h1>
+            <p class="muted">A marketplace with two sides.</p>
+          </div>
+        </div>
+
+        <div class="role-picker" role="tablist" aria-label="Account type">
+          <button class="role-option active" type="button" data-role="customer" role="tab" aria-selected="true">
+            <span class="role-emoji" aria-hidden="true">🛍️</span>
+            <strong>Customer</strong>
+            <small>Browse, buy and review</small>
+          </button>
+          <button class="role-option" type="button" data-role="shopkeeper" role="tab" aria-selected="false">
+            <span class="role-emoji" aria-hidden="true">🏪</span>
+            <strong>Shopkeeper</strong>
+            <small>Open a store and sell</small>
+          </button>
+        </div>
+
+        <div class="auth-mode" role="tablist">
+          <button class="mode-button active" type="button" data-auth-mode="login">Sign in</button>
+          <button class="mode-button" type="button" data-auth-mode="register">Create account</button>
+        </div>
+
+        <div id="authAlert" class="alert-region" aria-live="polite"></div>
+
+        <form id="loginForm" class="form-grid auth-form active">
+          <label>
+            Username
+            <input name="username" type="text" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">Sign in as <span data-role-label>customer</span></button>
+        </form>
+
+        <form id="registerForm" class="form-grid auth-form">
+          <label>
+            Username
+            <input name="username" type="text" autocomplete="username" minlength="3" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <p class="field-hint" data-role-hint></p>
+          <button type="submit">Create <span data-role-label>customer</span> account</button>
+        </form>
+
+        <details class="api-config">
+          <summary>Connection settings</summary>
+          <div class="inline-control">
+            <input id="apiBase" type="url" aria-label="API base URL" />
+            <button id="saveApiBase" type="button" class="ghost">Save</button>
+          </div>
+          <p id="connectionState" class="status-text">Not checked</p>
+        </details>
+      </div>
+    </div>
+
+    <!-- ============================ CONSOLE ============================ -->
+    <div id="sidebarScrim" class="sidebar-scrim" aria-hidden="true"></div>
+    <div id="appShell" class="app-shell" hidden>
+      <aside id="mainSidebar" class="sidebar">
+        <div class="brand-block">
+          <img src="./assets/logo.png" alt="" class="brand-mark" />
+          <div>
+            <h1>Niche</h1>
+            <p id="roleCaption" class="muted">Storefront</p>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="Main navigation">
+          <!-- data-nav-role gates each link: "customer", "shopkeeper",
+               "admin", or absent for everyone. -->
+          <a href="#browse" class="nav-link" data-view-link="browse" data-nav-role="customer">Browse</a>
+          <a href="#orders" class="nav-link" data-view-link="orders" data-nav-role="customer">My Orders</a>
+          <a href="#myreviews" class="nav-link" data-view-link="myreviews" data-nav-role="customer">My Reviews</a>
+
+          <a href="#dashboard" class="nav-link" data-view-link="dashboard" data-nav-role="shopkeeper">Dashboard</a>
+          <a href="#stores" class="nav-link" data-view-link="stores" data-nav-role="shopkeeper">My Stores</a>
+          <a href="#items" class="nav-link" data-view-link="items" data-nav-role="shopkeeper">Inventory</a>
+          <a href="#tags" class="nav-link" data-view-link="tags" data-nav-role="shopkeeper">Tags</a>
+          <a href="#sales" class="nav-link" data-view-link="sales" data-nav-role="shopkeeper">Incoming Orders</a>
+          <a href="#feedback" class="nav-link" data-view-link="feedback" data-nav-role="shopkeeper">Customer Reviews</a>
+
+          <a href="#admin" class="nav-link" data-view-link="admin" data-nav-role="admin">Users</a>
+          <a href="#activity" class="nav-link" data-view-link="activity" data-nav-role="admin">Activity</a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="account-chip">
+            <span class="avatar" id="accountAvatar" aria-hidden="true">?</span>
+            <div class="account-meta">
+              <strong id="accountName">—</strong>
+              <span id="accountRole" class="role-badge">—</span>
+            </div>
+          </div>
+          <button id="logoutButton" type="button" class="ghost">Sign out</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <button id="menuToggle" class="menu-toggle ghost" type="button" aria-controls="mainSidebar" aria-expanded="false">
+            Menu
+          </button>
+          <div>
+            <p class="eyebrow" id="viewEyebrow">Storefront</p>
+            <h2 id="viewTitle">Browse</h2>
+          </div>
+          <div class="session-actions">
+            <button id="refreshData" type="button" class="ghost">Refresh</button>
+          </div>
+        </header>
+
+        <section id="alertRegion" class="alert-region" aria-live="polite"></section>
+
+        <!-- ---------------------- CUSTOMER VIEWS ---------------------- -->
+
+        <section id="browse" class="view" data-view="browse">
+          <div class="metrics-grid">
+            <article class="metric-card">
+              <span>Items available</span>
+              <strong id="browseItemCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Stores</span>
+              <strong id="browseStoreCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Your orders</span>
+              <strong id="browseOrderCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Reviews written</span>
+              <strong id="browseReviewCount">0</strong>
+            </article>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h3>Shop</h3>
+              <input id="browseSearch" class="search-input" type="search" placeholder="Search items…" aria-label="Search items" />
+            </div>
+            <div id="catalogue" class="catalogue empty-state">Loading…</div>
+          </div>
+        </section>
+
+        <section id="orders" class="view" data-view="orders">
+          <div class="panel">
+            <div class="panel-heading"><h3>My Orders</h3></div>
+            <div id="myOrdersTable" class="data-table empty-state">No orders yet.</div>
+          </div>
+        </section>
+
+        <section id="myreviews" class="view" data-view="myreviews">
+          <div class="panel">
+            <div class="panel-heading"><h3>My Reviews</h3></div>
+            <p class="panel-note">You can review any item once. Shopkeepers can read your comments but cannot delete or reply to them.</p>
+            <div id="myReviewsTable" class="data-table empty-state">You have not reviewed anything yet.</div>
+          </div>
+        </section>
+
+        <!-- --------------------- SHOPKEEPER VIEWS --------------------- -->
+
+        <section id="dashboard" class="view" data-view="dashboard">
+          <div class="metrics-grid">
+            <article class="metric-card">
+              <span>Stores</span>
+              <strong id="storeCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Items</span>
+              <strong id="itemCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>Pending orders</span>
+              <strong id="pendingCount">0</strong>
+            </article>
+            <article class="metric-card rating-card">
+              <span>Average rating</span>
+              <strong id="overallRating">0.00</strong>
+              <div id="overallStars" class="stars"></div>
+            </article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading"><h3>Recent Items</h3></div>
+              <div id="recentItems" class="compact-list empty-state">No items yet.</div>
+            </section>
+            <section class="panel">
+              <div class="panel-heading"><h3>Latest Feedback</h3></div>
+              <div id="recentFeedback" class="compact-list empty-state">No reviews yet.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="stores" class="view" data-view="stores">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading"><h3>Open a Store</h3></div>
+              <form id="storeForm" class="form-grid">
+                <label>
+                  Store name
+                  <input name="name" type="text" maxlength="80" required />
+                </label>
+                <button type="submit">Create Store</button>
+              </form>
+            </section>
+            <section class="panel wide">
+              <div class="panel-heading"><h3>My Stores</h3></div>
+              <div id="storesTable" class="data-table empty-state">No stores yet.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="items" class="view" data-view="items">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading"><h3>Add Item</h3></div>
+              <form id="itemForm" class="form-grid">
+                <label>
+                  Item name
+                  <input name="name" type="text" maxlength="80" required />
+                </label>
+                <label>
+                  Price
+                  <input name="price" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  Image URL
+                  <input name="image_url" type="url" placeholder="https://…" />
+                </label>
+                <label>
+                  Store
+                  <select name="store_id" required></select>
+                </label>
+                <button type="submit">Add Item</button>
+              </form>
+            </section>
+            <section class="panel wide">
+              <div class="panel-heading"><h3>Inventory</h3></div>
+              <div id="itemsTable" class="data-table empty-state">No items yet.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tags" class="view" data-view="tags">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading"><h3>Create Tag</h3></div>
+              <form id="tagForm" class="form-grid">
+                <label>
+                  Tag name
+                  <input name="name" type="text" maxlength="80" required />
+                </label>
+                <label>
+                  Store
+                  <select name="store_id" required></select>
+                </label>
+                <button type="submit">Add Tag</button>
+              </form>
+            </section>
+            <section class="panel">
+              <div class="panel-heading"><h3>Link Tag To Item</h3></div>
+              <form id="linkTagForm" class="form-grid">
+                <label>
+                  Item
+                  <select name="item_id" required></select>
+                </label>
+                <label>
+                  Tag
+                  <select name="tag_id" required></select>
+                </label>
+                <button type="submit">Link Tag</button>
+              </form>
+            </section>
+            <section class="panel wide">
+              <div class="panel-heading"><h3>Tags</h3></div>
+              <div id="tagsTable" class="data-table empty-state">No tags yet.</div>
+            </section>
+          </div>
+        </section>
+
+        <section id="sales" class="view" data-view="sales">
+          <div class="panel">
+            <div class="panel-heading">
+              <h3>Incoming Orders</h3>
+              <select id="salesStoreSelect" class="search-input" aria-label="Store"></select>
+            </div>
+            <div id="salesTable" class="data-table empty-state">No orders yet.</div>
+          </div>
+        </section>
+
+        <section id="feedback" class="view" data-view="feedback">
+          <div class="panel-heading view-heading">
+            <p class="panel-note">Read-only: shopkeepers cannot write, edit or delete reviews.</p>
+            <select id="feedbackStoreSelect" class="search-input" aria-label="Store"></select>
+          </div>
+          <div class="rating-summary">
+            <div class="rating-hero panel">
+              <strong id="feedbackAverage">0.00</strong>
+              <div id="feedbackStars" class="stars"></div>
+              <span id="feedbackCount" class="muted">no reviews</span>
+            </div>
+            <div class="panel breakdown-panel">
+              <div id="ratingBreakdown" class="breakdown"></div>
+            </div>
+          </div>
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading"><h3>By Item</h3></div>
+              <div id="perItemRatings" class="compact-list empty-state">No items.</div>
+            </section>
+            <section class="panel wide">
+              <div class="panel-heading"><h3>What customers said</h3></div>
+              <div id="feedbackList" class="review-list empty-state">No reviews yet.</div>
+            </section>
+          </div>
+        </section>
+
+        <!-- ------------------------ ADMIN VIEWS ------------------------ -->
+
+        <section id="admin" class="view" data-view="admin">
+          <div class="panel">
+            <div class="panel-heading"><h3>Users</h3></div>
+            <div id="usersTable" class="data-table empty-state">No users loaded.</div>
+          </div>
+        </section>
+
+        <section id="activity" class="view" data-view="activity">
+          <div class="panel">
+            <div class="panel-heading"><h3>Activity Log</h3></div>
+            <div id="activityTable" class="data-table empty-state">No activity loaded.</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

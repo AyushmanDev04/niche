@@ -14,4 +14,4 @@ class ActivityLogModel(db.Model):
     details = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    user = db.relationship("UserModel")
+    user = db.relationship("UserModel", back_populates="activity_logs")

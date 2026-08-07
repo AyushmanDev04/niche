@@ -4,6 +4,11 @@ from db import db
 
 class ReviewModel(db.Model):
     __tablename__ = "reviews"
+    __table_args__ = (
+        # One review per user per item. Without this a single account could
+        # post unlimited reviews and skew an item's average rating.
+        db.UniqueConstraint("user_id", "item_id", name="uq_review_user_item"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     rating = db.Column(db.Integer, nullable=False)
@@ -14,4 +19,4 @@ class ReviewModel(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
     item = db.relationship("ItemModel", back_populates="reviews")
-    user = db.relationship("UserModel")
+    user = db.relationship("UserModel", back_populates="reviews")

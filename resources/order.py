@@ -3,10 +3,12 @@ from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.exc import SQLAlchemyError
 
+from sqlalchemy.orm import joinedload
+
 from db import db
-from models import OrderModel, ItemModel
+from models import OrderModel, ItemModel, StoreModel
 from schemas import OrderSchema, PlaceOrderSchema
-from resources.permissions import can_work_store
+from resources.permissions import can_work_store, require_customer
 from activity_log import log_activity
 
 blp = Blueprint("Orders", "orders", description="Operations on orders")
@@ -18,13 +20,16 @@ class PlaceOrder(MethodView):
     @blp.arguments(PlaceOrderSchema)
     @blp.response(201, OrderSchema)
     def post(self, order_data, item_id):
-        """Any logged-in user (customer) can order an item."""
+        """Customers place orders. Shopkeeper accounts are for selling."""
+        require_customer()
+
         item = ItemModel.query.get_or_404(item_id)
         if item.is_hidden:
             abort(404, message="This item is not currently available.")
 
         order = OrderModel(
-            user_id=get_jwt_identity(),
+            # get_jwt_identity() returns a string; the column is an integer.
+            user_id=int(get_jwt_identity()),
             item_id=item.id,
             store_id=item.store_id,
             quantity=order_data.get("quantity", 1),
@@ -53,7 +58,10 @@ class MyOrders(MethodView):
         """The current user's own order history."""
         user_id = get_jwt_identity()
         return (
-            OrderModel.query.filter_by(user_id=user_id)
+            OrderModel.query.options(
+                joinedload(OrderModel.item), joinedload(OrderModel.user)
+            )
+            .filter_by(user_id=int(user_id))
             .order_by(OrderModel.created_at.desc())
             .all()
         )
@@ -65,14 +73,15 @@ class StoreOrders(MethodView):
     @blp.response(200, OrderSchema(many=True))
     def get(self, store_id):
         """Owner, workers, or admin see every order placed at this store."""
-        from models import StoreModel
-
         store = StoreModel.query.get_or_404(store_id)
         if not can_work_store(store):
             abort(403, message="You do not have permission to view this store's orders.")
 
         return (
-            OrderModel.query.filter_by(store_id=store_id)
+            OrderModel.query.options(
+                joinedload(OrderModel.item), joinedload(OrderModel.user)
+            )
+            .filter_by(store_id=store_id)
             .order_by(OrderModel.created_at.desc())
             .all()
         )

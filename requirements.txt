@@ -1,14 +1,18 @@
-flask==2.1.3
-werkzeug==2.1.2
-flask-smorest==0.39.0
-python-dotenv
-sqlalchemy==1.4.47
-flask-sqlalchemy==2.5.1
-flask-jwt-extended
-passlib
-flask-migrate==3.1.0
-flask-cors
-google-auth
-pytest
-gunicorn
-psycopg2-binary
+# Pinned so a deploy can't silently pull a breaking or vulnerable release.
+# Flask 2.1.3 / Werkzeug 2.1.2 were from 2022 and carried known CVEs.
+flask==3.0.3
+werkzeug==3.0.3
+flask-smorest==0.44.0
+marshmallow==3.21.3
+python-dotenv==1.0.1
+sqlalchemy==2.0.31
+flask-sqlalchemy==3.1.1
+flask-jwt-extended==4.6.0
+passlib==1.7.4
+flask-migrate==4.0.7
+flask-cors==4.0.1
+flask-limiter==3.7.0
+google-auth==2.32.0
+gunicorn==22.0.0
+psycopg2-binary==2.9.9
+pytest==8.2.2

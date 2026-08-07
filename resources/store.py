@@ -1,14 +1,14 @@
-from models import StoreModel, UserModel
+from models import StoreModel, UserModel, ReviewModel, ItemModel
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm import joinedload
 from db import db
 
-from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from schemas import StoreSchema, AddWorkerSchema
-from resources.permissions import can_manage_store
+from schemas import StoreSchema, AddWorkerSchema, StoreReviewSummarySchema
+from resources.permissions import can_manage_store, can_work_store, require_shopkeeper
 from activity_log import log_activity
 
 blp = Blueprint("stores", __name__, description="Operations on stores")
@@ -44,7 +44,10 @@ class StoreList(MethodView):
     @blp.arguments(StoreSchema)
     @blp.response(201, StoreSchema)
     def post(self, store_data):
-        store = StoreModel(**store_data, owner_id=get_jwt_identity())
+        # Customers cannot sell.
+        require_shopkeeper()
+        # get_jwt_identity() returns a string; owner_id is an integer column.
+        store = StoreModel(**store_data, owner_id=int(get_jwt_identity()))
         try:
             db.session.add(store)
             db.session.flush()
@@ -63,6 +66,58 @@ class StoreList(MethodView):
         return store
 
 
+@blp.route("/store/<int:store_id>/review")
+class StoreReviews(MethodView):
+    @jwt_required()
+    @blp.response(200, StoreReviewSummarySchema)
+    def get(self, store_id):
+        """Every review left on this store's items, with the ratings rolled up.
+
+        Shopkeepers cannot write reviews, so this read-only view is how they
+        see what customers said: the full comments, the mean rating as a
+        float, the distribution across 1-5 stars, and a per-item breakdown.
+        """
+        store = StoreModel.query.get_or_404(store_id)
+        if not can_work_store(store):
+            abort(403, message="You do not have permission to view this store's reviews.")
+
+        reviews = (
+            ReviewModel.query.options(
+                joinedload(ReviewModel.user), joinedload(ReviewModel.item)
+            )
+            .join(ItemModel, ReviewModel.item_id == ItemModel.id)
+            .filter(ItemModel.store_id == store_id)
+            .order_by(ReviewModel.created_at.desc())
+            .all()
+        )
+
+        breakdown = {str(star): 0 for star in range(1, 6)}
+        for review in reviews:
+            breakdown[str(review.rating)] += 1
+
+        # Per-item averages come straight from the aggregate columns, so this
+        # does not re-scan the reviews table for each item.
+        per_item = [
+            {
+                "item_id": item.id,
+                "item_name": item.name,
+                "average_rating": round(float(item.average_rating or 0), 2),
+                "review_count": item.review_count,
+            }
+            for item in store.items.all()
+        ]
+
+        return {
+            "store_id": store.id,
+            "store_name": store.name,
+            "average_rating": round(float(store.average_rating or 0), 2),
+            "review_count": store.review_count,
+            "rating_breakdown": breakdown,
+            "per_item": sorted(per_item, key=lambda row: -row["review_count"]),
+            "reviews": reviews,
+        }
+
+
 @blp.route("/store/<int:store_id>/worker")
 class StoreWorkers(MethodView):
     @jwt_required()
@@ -76,6 +131,14 @@ class StoreWorkers(MethodView):
         user = UserModel.query.filter_by(username=worker_data["username"]).first()
         if not user:
             abort(404, message="No user with that username.")
+
+        # Workers sell on the store's behalf, so a customer account cannot be
+        # one — that would be a back door around "customers cannot sell".
+        if not user.is_shopkeeper:
+            abort(
+                400,
+                message="Only shopkeeper accounts can work a store. That user is a customer.",
+            )
 
         if store.owner_id is not None and str(store.owner_id) == str(user.id):
             abort(400, message="This user already owns the store.")

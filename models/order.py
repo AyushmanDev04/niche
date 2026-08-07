@@ -14,6 +14,6 @@ class OrderModel(db.Model):
     status = db.Column(db.String(20), nullable=False, default="pending")
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    user = db.relationship("UserModel")
-    item = db.relationship("ItemModel")
-    store = db.relationship("StoreModel")
+    user = db.relationship("UserModel", back_populates="orders")
+    item = db.relationship("ItemModel", back_populates="orders")
+    store = db.relationship("StoreModel", back_populates="orders")

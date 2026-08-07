@@ -1,0 +1,1001 @@
+/* Niche console styles.
+ *
+ * Light palette on :root, dark overrides in a prefers-color-scheme block, so
+ * the console follows the operating system rather than forcing one theme.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f4f6f7;
+  --panel: #ffffff;
+  --panel-soft: #eef2f3;
+  --text: #162026;
+  --muted: #5f7078;
+  --border: #dbe3e6;
+
+  --primary: #0d7469;
+  --primary-strong: #0a5d54;
+  --primary-soft: #e2f1ef;
+  --accent: #b4472d;
+  --warning: #c98a04;
+  --success: #1d7b43;
+  --success-soft: #e4f2ea;
+  --danger: #b42318;
+  --danger-soft: #fbe9e7;
+
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 10px 30px rgba(22, 32, 38, 0.07);
+  --shadow-lg: 0 24px 60px rgba(22, 32, 38, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1417;
+    --panel: #171e22;
+    --panel-soft: #1f282d;
+    --text: #e8eef0;
+    --muted: #93a4ac;
+    --border: #2a353b;
+
+    --primary: #2aa899;
+    --primary-strong: #35bfae;
+    --primary-soft: #16302d;
+    --accent: #e0765a;
+    --warning: #e0a92b;
+    --success: #46b477;
+    --success-soft: #16301f;
+    --danger: #e5675c;
+    --danger-soft: #33191a;
+
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The `hidden` attribute only carries `display: none` from the user-agent
+   stylesheet, so any author `display` rule beats it. Both #authGate and
+   #appShell set `display: grid`, which would leave them stacked on the page
+   at once. This makes `hidden` actually hide. */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, p {
+  margin: 0;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 650;
+  min-height: 42px;
+  padding: 0 16px;
+  transition: background 140ms ease, opacity 140ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-strong);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+button.ghost:hover:not(:disabled) {
+  background: var(--panel-soft);
+}
+
+button.danger {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--danger);
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+button.small {
+  min-height: 32px;
+  padding: 0 11px;
+  font-size: 0.83rem;
+}
+
+input, select, textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  padding: 0 12px;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ----------------------------- Auth gate ----------------------------- */
+
+.auth-gate {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(1000px 500px at 50% -10%, var(--primary-soft), transparent 70%),
+    var(--bg);
+}
+
+.auth-card {
+  width: min(460px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 28px;
+  display: grid;
+  gap: 18px;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.auth-brand h1 {
+  font-size: 1.4rem;
+}
+
+/* The two-sided role picker is the first choice on the screen. */
+.role-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.role-option {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  text-align: left;
+  min-height: 0;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.role-option:hover:not(.active) {
+  background: var(--panel-soft);
+}
+
+.role-option.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.role-option strong {
+  font-size: 0.97rem;
+}
+
+.role-option small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.role-emoji {
+  font-size: 1.35rem;
+}
+
+.auth-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  background: var(--panel-soft);
+  border-radius: var(--radius);
+}
+
+.mode-button {
+  background: transparent;
+  color: var(--muted);
+  min-height: 36px;
+}
+
+.mode-button:hover:not(.active) {
+  background: transparent;
+  color: var(--text);
+}
+
+.mode-button.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* :not(.active) rather than a bare `.auth-form { display: none }` — these
+   forms also carry .form-grid, whose `display: grid` is declared later in this
+   file and would otherwise win at equal specificity, showing both forms. */
+.auth-form:not(.active) {
+  display: none;
+}
+
+.auth-form.active {
+  display: grid;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin: -4px 0 0;
+}
+
+.api-config summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+
+.api-config .inline-control {
+  margin-top: 10px;
+}
+
+.inline-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.status-text {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 6px;
+}
+
+/* ------------------------------ Shell ------------------------------- */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brand-block h1 {
+  font-size: 1.15rem;
+}
+
+.brand-block p {
+  font-size: 0.79rem;
+}
+
+.nav-list {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+}
+
+.nav-link {
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 0.91rem;
+}
+
+.nav-link:hover {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.nav-link.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.nav-link[hidden] {
+  display: none;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.account-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.account-meta {
+  display: grid;
+  min-width: 0;
+}
+
+.account-meta strong {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-badge {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--panel-soft);
+  color: var(--muted);
+}
+
+.role-badge.role-customer {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.role-badge.role-shopkeeper {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.role-badge.role-admin {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+
+.workspace {
+  padding: 26px;
+  min-width: 0;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 0.73rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.topbar h2 {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+}
+
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-scrim,
+.menu-toggle {
+  display: none;
+}
+
+/* ------------------------------ Views ------------------------------- */
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+.alert {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--panel);
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+}
+
+.alert.error {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.alert.success {
+  border-left-color: var(--success);
+  background: var(--success-soft);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metric-card,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.metric-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  align-content: start;
+}
+
+/* Direct child only: a bare `.metric-card span` also matched the nested spans
+   inside a star rating and repainted them muted grey. */
+.metric-card > span {
+  color: var(--muted);
+  font-size: 0.79rem;
+  font-weight: 600;
+}
+
+.metric-card strong {
+  font-size: 1.85rem;
+  line-height: 1.1;
+}
+
+.rating-card .stars {
+  font-size: 0.85rem;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 350px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.panel {
+  padding: 18px;
+}
+
+.panel.wide {
+  min-width: 0;
+}
+
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-heading h3 {
+  font-size: 0.98rem;
+}
+
+.view-heading {
+  margin-bottom: 14px;
+}
+
+.panel-note {
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.search-input {
+  max-width: 260px;
+  min-height: 36px;
+}
+
+/* --------------------------- Product grid --------------------------- */
+
+.catalogue {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 14px;
+}
+
+.product-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.product-media {
+  aspect-ratio: 4 / 3;
+  background: var(--panel-soft);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-placeholder {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.product-body {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  align-content: start;
+  flex: 1;
+}
+
+.product-body h4 {
+  font-size: 0.97rem;
+}
+
+.product-store {
+  color: var(--muted);
+  font-size: 0.79rem;
+}
+
+.product-rating,
+.inline-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tag-chip {
+  background: var(--panel-soft);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.product-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.price {
+  font-size: 1.05rem;
+}
+
+.product-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ------------------------------ Tables ------------------------------ */
+
+.data-table {
+  overflow-x: auto;
+}
+
+.data-table table {
+  border-collapse: collapse;
+  min-width: 560px;
+  width: 100%;
+}
+
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 11px 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.data-table th {
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.data-table td {
+  font-size: 0.89rem;
+}
+
+.data-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  background: var(--panel-soft);
+  color: var(--muted);
+}
+
+.status-pending {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.status-fulfilled {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.status-cancelled {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ----------------------------- Ratings ------------------------------ */
+
+/* Two stacked rows of stars; the gold one is clipped to the rating's
+   percentage, so 4.33/5 fills exactly 86.6% of the width. */
+.stars {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
+.stars-base {
+  color: var(--border);
+}
+
+.stars-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  color: var(--warning);
+}
+
+.rating-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.rating-hero {
+  display: grid;
+  gap: 5px;
+  place-items: center;
+  text-align: center;
+  padding: 22px;
+}
+
+.rating-hero strong {
+  font-size: 2.8rem;
+  line-height: 1;
+}
+
+.breakdown-panel {
+  display: grid;
+  align-content: center;
+}
+
+.breakdown {
+  display: grid;
+  gap: 7px;
+}
+
+.breakdown-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.8rem;
+}
+
+.breakdown-label {
+  color: var(--muted);
+}
+
+.breakdown-track {
+  height: 7px;
+  background: var(--panel-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.breakdown-fill {
+  height: 100%;
+  background: var(--warning);
+  border-radius: 999px;
+  transition: width 240ms ease;
+}
+
+.breakdown-count {
+  color: var(--muted);
+  text-align: right;
+}
+
+.review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.review-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 13px;
+  background: var(--panel);
+}
+
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 0.86rem;
+}
+
+.review-comment {
+  font-size: 0.89rem;
+  line-height: 1.55;
+}
+
+/* --------------------------- Compact lists -------------------------- */
+
+.compact-list {
+  display: grid;
+  gap: 8px;
+}
+
+.compact-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.compact-row.column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.compact-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.compact-row-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 7px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  flex-shrink: 0;
+}
+
+.empty-state {
+  color: var(--muted);
+  font-size: 0.88rem;
+  padding: 14px 0;
+}
+
+/* ---------------------------- Responsive ---------------------------- */
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: min(300px, 86vw);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-104%);
+    transition: transform 180ms ease;
+  }
+
+  body.nav-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    display: block;
+    pointer-events: none;
+    background: rgba(10, 16, 20, 0);
+    transition: background 180ms ease;
+  }
+
+  body.nav-open .sidebar-scrim {
+    pointer-events: auto;
+    background: rgba(10, 16, 20, 0.45);
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content-grid,
+  .rating-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace,
+  .sidebar {
+    padding: 16px;
+  }
+
+  .auth-card {
+    padding: 22px;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .catalogue {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .search-input {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
