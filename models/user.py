@@ -20,8 +20,12 @@ class Role:
 
 class UserModel(db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        db.UniqueConstraint("public_ref", name="uq_user_public_ref"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
+    public_ref = db.Column(db.String(20), nullable=True, index=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=True)
     email = db.Column(db.String(120), nullable=True)
@@ -66,3 +70,7 @@ class UserModel(db.Model):
     # nullable and each row snapshots the username, so the audit trail survives.
     # No cascade here — SQLAlchemy nulls the foreign key instead.
     activity_logs = db.relationship("ActivityLogModel", back_populates="user")
+
+    profile = db.relationship(
+        "UserProfileModel", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )

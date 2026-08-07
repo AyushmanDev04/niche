@@ -1,6 +1,10 @@
 from marshmallow import Schema, fields, validate
 
 from models.user import Role
+from order_lifecycle import OrderStatus
+
+PHONE_REGEX = r"^[6-9]\d{9}$"  # Indian mobile: 10 digits, not starting 0-5
+PINCODE_REGEX = r"^[1-9]\d{5}$"  # Indian PIN code: 6 digits, not starting 0
 
 
 class PlainItemSchema(Schema):
@@ -18,6 +22,7 @@ class PlainItemSchema(Schema):
         ),
     )
     is_hidden = fields.Bool(dump_only=True)
+    stock_quantity = fields.Int(allow_none=True, validate=validate.Range(min=0))
     # Mean of every rating on this item, as a float (0.0 when unreviewed).
     average_rating = fields.Function(
         lambda item: round(float(item.average_rating or 0), 2), dump_only=True
@@ -63,6 +68,7 @@ class ItemUpdateSchema(Schema):
             error="image_url must start with http:// or https://",
         ),
     )
+    stock_quantity = fields.Int(allow_none=True, validate=validate.Range(min=0))
     # store_id is deliberately absent: moving an item between stores needs a
     # permission check against *both* stores, so it is not part of a plain edit.
 
@@ -127,6 +133,7 @@ class ReviewSchema(PlainReviewSchema):
 
 class UserSchema(Schema):
     id = fields.Int(dump_only=True)
+    public_ref = fields.Str(dump_only=True)
     username = fields.Str(required=True, validate=validate.Length(min=3, max=80))
     password = fields.Str(required=True, load_only=True, validate=validate.Length(min=8))
     email = fields.Str()
@@ -153,6 +160,7 @@ class LoginSchema(Schema):
 class UserAdminSchema(Schema):
     """Extended view used only in admin endpoints (list, single-user detail)."""
     id = fields.Int(dump_only=True)
+    public_ref = fields.Str(dump_only=True)
     username = fields.Str(dump_only=True)
     email = fields.Str(dump_only=True)
     role = fields.Str(dump_only=True)
@@ -171,6 +179,37 @@ class GoogleLoginSchema(Schema):
 
 class AddWorkerSchema(Schema):
     username = fields.Str(required=True)
+
+
+class UserProfileSchema(Schema):
+    """Read/write shape for GET and PUT /me/profile.
+
+    Regex validation mirrors static/validation.js — belt and suspenders: the
+    client rejects bad input before a round trip, the server rejects it
+    regardless of what actually sent the request.
+    """
+
+    address_line1 = fields.Str(
+        allow_none=True, load_default=None, validate=validate.Length(max=150)
+    )
+    address_line2 = fields.Str(
+        allow_none=True, load_default=None, validate=validate.Length(max=150)
+    )
+    city = fields.Str(allow_none=True, load_default=None, validate=validate.Length(max=80))
+    state = fields.Str(allow_none=True, load_default=None, validate=validate.Length(max=80))
+    pincode = fields.Str(
+        allow_none=True,
+        load_default=None,
+        validate=validate.Regexp(PINCODE_REGEX, error="Enter a valid 6-digit PIN code."),
+    )
+    phone = fields.Str(
+        allow_none=True,
+        load_default=None,
+        validate=validate.Regexp(PHONE_REGEX, error="Enter a valid 10-digit mobile number."),
+    )
+    formatted_address = fields.Str(dump_only=True)
+    is_complete = fields.Bool(dump_only=True)
+    updated_at = fields.DateTime(dump_only=True)
 
 
 class ActivityLogSchema(Schema):
@@ -195,6 +234,10 @@ class PlaceOrderSchema(Schema):
     )
 
 
+class OrderTransitionSchema(Schema):
+    status = fields.Str(required=True, validate=validate.OneOf(OrderStatus.ALL))
+
+
 class OrderSchema(Schema):
     id = fields.Int(dump_only=True)
     # Quotable order number for receipts and support ("ORD-00042").
@@ -216,3 +259,10 @@ class OrderSchema(Schema):
     delivery_address = fields.Str(dump_only=True)
     contact_phone = fields.Str(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
+    updated_at = fields.DateTime(dump_only=True)
+    allowed_next = fields.Method("get_allowed_next", dump_only=True)
+
+    def get_allowed_next(self, order):
+        from order_lifecycle import allowed_next
+
+        return allowed_next(order.status)

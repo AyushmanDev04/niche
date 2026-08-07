@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
 from db import db
-from models import UserModel, ActivityLogModel, Role
+from models import UserModel, ActivityLogModel, Role, UserProfileModel
 from schemas import (
     UserSchema,
     UserRegisterSchema,
@@ -16,7 +16,9 @@ from schemas import (
     UserAdminSchema,
     GoogleLoginSchema,
     ActivityLogSchema,
+    UserProfileSchema,
 )
+from references import generate_unique_ref
 from flask_jwt_extended import (
     create_access_token,
     jwt_required,
@@ -47,6 +49,7 @@ class UserRegister(MethodView):
             username=user_data["username"],
             password=pbkdf2_sha256.hash(user_data["password"]),
             role=role,
+            public_ref=generate_unique_ref(UserModel, "public_ref", "CUST"),
         )
         try:
             db.session.add(user)
@@ -163,6 +166,7 @@ class GoogleLogin(MethodView):
                 google_id=google_id,
                 password=None,
                 role=login_data.get("role", Role.CUSTOMER),
+                public_ref=generate_unique_ref(UserModel, "public_ref", "CUST"),
             )
             db.session.add(user)
             is_new = True
@@ -229,6 +233,47 @@ class CurrentUser(MethodView):
         it the only way to learn your own role was to decode the JWT by hand.
         """
         return db.session.get(UserModel, int(get_jwt_identity())) or abort(404)
+
+
+@blp.route("/me/profile")
+class MyProfile(MethodView):
+    """Delivery details, server-side. See models/user_profile.py.
+
+    Every signed-in user has exactly one profile row, created on first write
+    rather than at registration — most accounts never fill it in, and there
+    is nothing to show for one that doesn't exist yet beyond empty fields.
+    """
+
+    @jwt_required()
+    @blp.response(200, UserProfileSchema)
+    def get(self):
+        user_id = int(get_jwt_identity())
+        profile = db.session.get(UserProfileModel, user_id)
+        if profile is None:
+            profile = UserProfileModel(user_id=user_id)
+        return profile
+
+    @jwt_required()
+    @blp.arguments(UserProfileSchema)
+    @blp.response(200, UserProfileSchema)
+    def put(self, profile_data):
+        user_id = int(get_jwt_identity())
+        profile = db.session.get(UserProfileModel, user_id)
+        if profile is None:
+            profile = UserProfileModel(user_id=user_id)
+            db.session.add(profile)
+
+        for field in ("address_line1", "address_line2", "city", "state", "pincode", "phone"):
+            setattr(profile, field, profile_data.get(field))
+
+        try:
+            log_activity("update_profile", details="delivery details updated")
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            abort(500, message="An error occurred while saving your profile.")
+
+        return profile
 
 
 @blp.route("/user/<int:user_id>")

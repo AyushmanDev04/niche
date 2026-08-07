@@ -1,16 +1,4 @@
-/* Niche console.
- *
- * The whole UI is gated on one thing: the signed-in account's role.
- *   customer   -> browse, order, review
- *   shopkeeper -> stores, inventory, tags, incoming orders, read-only feedback
- *   admin      -> the shopkeeper console plus users and the activity log
- *
- * Nothing here is a security boundary; the API enforces every rule
- * independently. Hiding controls a role cannot use just avoids showing people
- * buttons that would only ever return 403.
- */
-
-const state = {
+const sessionStore = createStore({
   apiBase: localStorage.getItem("niche.apiBase") || window.location.origin,
   accessToken: localStorage.getItem("niche.accessToken") || "",
   refreshToken: localStorage.getItem("niche.refreshToken") || "",
@@ -18,7 +6,42 @@ const state = {
   username: localStorage.getItem("niche.username") || "",
   userId: Number(localStorage.getItem("niche.userId")) || null,
   isAdmin: localStorage.getItem("niche.isAdmin") === "true",
-  authRole: "customer", // which tab the auth screen is showing
+});
+
+sessionStore.subscribe((next) => {
+  localStorage.setItem("niche.apiBase", next.apiBase);
+  localStorage.setItem("niche.accessToken", next.accessToken || "");
+  localStorage.setItem("niche.refreshToken", next.refreshToken || "");
+  localStorage.setItem("niche.role", next.role || "");
+  localStorage.setItem("niche.username", next.username || "");
+  localStorage.setItem("niche.isAdmin", String(next.isAdmin));
+  if (next.userId != null) localStorage.setItem("niche.userId", String(next.userId));
+  else localStorage.removeItem("niche.userId");
+});
+
+const state = {
+  get apiBase() {
+    return sessionStore.get().apiBase;
+  },
+  get accessToken() {
+    return sessionStore.get().accessToken;
+  },
+  get refreshToken() {
+    return sessionStore.get().refreshToken;
+  },
+  get role() {
+    return sessionStore.get().role;
+  },
+  get username() {
+    return sessionStore.get().username;
+  },
+  get userId() {
+    return sessionStore.get().userId;
+  },
+  get isAdmin() {
+    return sessionStore.get().isAdmin;
+  },
+  authRole: "customer",
   stores: [],
   items: [],
   tags: [],
@@ -26,6 +49,8 @@ const state = {
   myReviews: [],
   storeOrders: [],
   feedback: null,
+  profile: null,
+  publicRef: null,
   users: [],
   activity: [],
   search: "",
@@ -53,7 +78,6 @@ const els = {
   viewEyebrow: $("#viewEyebrow"),
   menuToggle: $("#menuToggle"),
   sidebarScrim: $("#sidebarScrim"),
-  // customer
   catalogue: $("#catalogue"),
   browseSearch: $("#browseSearch"),
   browseItemCount: $("#browseItemCount"),
@@ -62,7 +86,6 @@ const els = {
   browseReviewCount: $("#browseReviewCount"),
   myOrdersTable: $("#myOrdersTable"),
   myReviewsTable: $("#myReviewsTable"),
-  // shopkeeper
   storeCount: $("#storeCount"),
   itemCount: $("#itemCount"),
   pendingCount: $("#pendingCount"),
@@ -86,45 +109,21 @@ const els = {
   ratingBreakdown: $("#ratingBreakdown"),
   perItemRatings: $("#perItemRatings"),
   feedbackList: $("#feedbackList"),
-  // admin
   usersTable: $("#usersTable"),
   activityTable: $("#activityTable"),
-  // orders summary + account
   ordersTotalCount: $("#ordersTotalCount"),
   ordersPendingCount: $("#ordersPendingCount"),
   ordersFulfilledCount: $("#ordersFulfilledCount"),
   ordersTotalSpent: $("#ordersTotalSpent"),
   accountDetails: $("#accountDetails"),
   deliveryForm: $("#deliveryForm"),
-  // modal
   modalRoot: $("#modalRoot"),
   modalTitle: $("#modalTitle"),
   modalBody: $("#modalBody"),
   modalFoot: $("#modalFoot"),
 };
 
-// Saved delivery details, prefilled at checkout. Kept in localStorage rather
-// than on the user record because each order already stores its own copy —
-// editing this must never rewrite a past order's delivery address.
-const delivery = {
-  get address() {
-    return localStorage.getItem("niche.deliveryAddress") || "";
-  },
-  get phone() {
-    return localStorage.getItem("niche.deliveryPhone") || "";
-  },
-  save(address, phone) {
-    localStorage.setItem("niche.deliveryAddress", address || "");
-    localStorage.setItem("niche.deliveryPhone", phone || "");
-  },
-};
-
 els.apiBase.value = state.apiBase;
-
-/* ------------------------------------------------------------------ */
-/* DOM helpers — everything is built as nodes, never as HTML strings,  */
-/* because item names, comments and usernames are user-supplied.       */
-/* ------------------------------------------------------------------ */
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -153,9 +152,6 @@ function thumbnail(item, className = "thumb") {
   return img;
 }
 
-// Renders a fractional average (4.33) exactly, by overlaying a gold row of
-// stars clipped to the right percentage over a grey one. Partial-star glyphs
-// like U+2BE8 were tried first but render as a blank box in most fonts.
 function starNode(rating) {
   const value = Math.max(0, Math.min(5, Number(rating) || 0));
   const wrap = el("span", "stars");
@@ -170,8 +166,6 @@ function starNode(rating) {
   return wrap;
 }
 
-// Rupees: this is a platform for Indian local shops, and en-IN also groups
-// digits the way its users expect (1,20,000 rather than 120,000).
 function money(value) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -187,8 +181,23 @@ function button(label, className, onClick) {
   return node;
 }
 
+const STATUS_LABELS = {
+  pending: "Pending",
+  accepted: "Accepted",
+  packed: "Packed",
+  out_for_delivery: "Out for delivery",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
 function statusPill(status) {
-  return el("span", `status-pill status-${status}`, status);
+  return el("span", `status-pill status-${status}`, STATUS_LABELS[status] || status);
+}
+
+function accountStatusPill(isBanned) {
+  return isBanned
+    ? el("span", "status-pill status-cancelled", "Banned")
+    : el("span", "status-pill status-completed", "Active");
 }
 
 function renderTable(target, columns, rows, emptyMessage = "Nothing here yet.") {
@@ -201,8 +210,6 @@ function renderTable(target, columns, rows, emptyMessage = "Nothing here yet.") 
 
   const table = el("table");
   const headRow = el("tr");
-  // The same className goes on the header and every cell in that column, so
-  // numeric columns and their headings stay aligned with each other.
   columns.forEach((column) => headRow.append(el("th", column.className, column.label)));
   const thead = el("thead");
   thead.append(headRow);
@@ -229,14 +236,6 @@ function setAlert(message, type = "info", region = els.alertRegion) {
   if (!message) return;
   region.append(el("div", `alert ${type}`, message));
 }
-
-/* ------------------------------------------------------------------ */
-/* Modals                                                              */
-/*                                                                     */
-/* window.prompt/confirm were used for checkout and reviews. They can't */
-/* show a running total, validate before submitting, or be styled, and  */
-/* a browser-chrome dialog reads as unfinished on a storefront.         */
-/* ------------------------------------------------------------------ */
 
 let closeModal = () => {};
 
@@ -271,7 +270,6 @@ function openModal({ title, body, actions, onOpen }) {
   else els.modalBody.querySelector("input, textarea, select, button")?.focus();
 }
 
-// Styled stand-in for window.confirm. Resolves true/false.
 function confirmAction({ title, message, confirmLabel = "Confirm", danger = false }) {
   return new Promise((resolve) => {
     const body = el("p", "modal-message", message);
@@ -287,51 +285,30 @@ function confirmAction({ title, message, confirmLabel = "Confirm", danger = fals
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* Networking                                                          */
-/* ------------------------------------------------------------------ */
-
 function apiUrl(path) {
   return `${state.apiBase.replace(/\/$/, "")}${path}`;
 }
 
 function storeSession({ access_token, refresh_token, role, username, is_admin, id }) {
-  if (access_token) {
-    state.accessToken = access_token;
-    localStorage.setItem("niche.accessToken", access_token);
-  }
-  if (refresh_token) {
-    state.refreshToken = refresh_token;
-    localStorage.setItem("niche.refreshToken", refresh_token);
-  }
-  if (role) {
-    state.role = role;
-    localStorage.setItem("niche.role", role);
-  }
-  if (username) {
-    state.username = username;
-    localStorage.setItem("niche.username", username);
-  }
-  if (is_admin !== undefined) {
-    state.isAdmin = Boolean(is_admin);
-    localStorage.setItem("niche.isAdmin", String(state.isAdmin));
-  }
-  if (id !== undefined && id !== null) {
-    state.userId = Number(id);
-    localStorage.setItem("niche.userId", String(state.userId));
-  }
+  const patch = {};
+  if (access_token) patch.accessToken = access_token;
+  if (refresh_token) patch.refreshToken = refresh_token;
+  if (role) patch.role = role;
+  if (username) patch.username = username;
+  if (is_admin !== undefined) patch.isAdmin = Boolean(is_admin);
+  if (id !== undefined && id !== null) patch.userId = Number(id);
+  sessionStore.set(patch);
 }
 
 function clearSession() {
-  state.accessToken = "";
-  state.refreshToken = "";
-  state.role = "";
-  state.username = "";
-  state.userId = null;
-  state.isAdmin = false;
-  ["accessToken", "refreshToken", "role", "username", "userId", "isAdmin"].forEach((key) =>
-    localStorage.removeItem(`niche.${key}`)
-  );
+  sessionStore.set({
+    accessToken: "",
+    refreshToken: "",
+    role: "",
+    username: "",
+    userId: null,
+    isAdmin: false,
+  });
 }
 
 let refreshInFlight = null;
@@ -372,7 +349,6 @@ async function rawRequest(path, options, token) {
 async function request(path, options = {}, allowRetry = true) {
   let response = await rawRequest(path, options, state.accessToken);
 
-  // An expired access token is recoverable: refresh once, then replay.
   if (response.status === 401 && allowRetry && state.refreshToken && path !== "/refresh") {
     if (await refreshAccessToken()) {
       response = await rawRequest(path, options, state.accessToken);
@@ -393,7 +369,6 @@ async function request(path, options = {}, allowRetry = true) {
   }
 
   if (!response.ok) {
-    // Marshmallow validation errors arrive as {errors: {json: {field: [...]}}}.
     const fieldErrors = body?.errors?.json;
     if (fieldErrors) {
       const first = Object.entries(fieldErrors)[0];
@@ -407,10 +382,6 @@ async function request(path, options = {}, allowRetry = true) {
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
-
-/* ------------------------------------------------------------------ */
-/* Auth screen                                                         */
-/* ------------------------------------------------------------------ */
 
 const ROLE_COPY = {
   customer: {
@@ -491,8 +462,6 @@ els.registerForm.addEventListener("submit", async (event) => {
   try {
     const body = { ...formData(els.registerForm), role: state.authRole };
     await request("/register", { method: "POST", body: JSON.stringify(body) });
-    // Registration does not sign you in, so log straight in with the same
-    // credentials rather than making the user type them twice.
     storeSession(
       await request("/login", {
         method: "POST",
@@ -509,8 +478,7 @@ els.registerForm.addEventListener("submit", async (event) => {
 });
 
 els.saveApiBase.addEventListener("click", () => {
-  state.apiBase = els.apiBase.value.trim() || window.location.origin;
-  localStorage.setItem("niche.apiBase", state.apiBase);
+  sessionStore.set({ apiBase: els.apiBase.value.trim() || window.location.origin });
   els.connectionState.textContent = "Saved.";
 });
 
@@ -518,15 +486,10 @@ els.logoutButton.addEventListener("click", async () => {
   try {
     if (state.accessToken) await request("/logout", { method: "POST" });
   } catch {
-    // Clear the local session even if the token was already invalid.
   }
   clearSession();
   showAuthGate();
 });
-
-/* ------------------------------------------------------------------ */
-/* Navigation                                                          */
-/* ------------------------------------------------------------------ */
 
 function visibleNavLinks() {
   return [...document.querySelectorAll("[data-view-link]")].filter(
@@ -554,6 +517,8 @@ function applyRoleVisibility() {
   els.roleCaption.textContent = ROLE_COPY[state.role]?.caption || "Console";
 }
 
+sessionStore.select(["role", "isAdmin", "username"], applyRoleVisibility);
+
 function setView(viewName) {
   const links = visibleNavLinks();
   const allowed = links.map((link) => link.dataset.viewLink);
@@ -572,7 +537,6 @@ function setView(viewName) {
   els.viewEyebrow.textContent = ROLE_COPY[state.role]?.caption || "Console";
   setMenuOpen(false);
 
-  // Views whose data is fetched on demand rather than up front.
   if (target === "sales") loadStoreOrders();
   if (target === "feedback") loadFeedback();
   if (target === "admin") loadUsers();
@@ -603,10 +567,6 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("resize", () => {
   if (window.innerWidth > 980) setMenuOpen(false);
 });
-
-/* ------------------------------------------------------------------ */
-/* Customer views                                                      */
-/* ------------------------------------------------------------------ */
 
 function renderCatalogue() {
   const term = state.search.trim().toLowerCase();
@@ -665,7 +625,7 @@ function renderCatalogue() {
       const actions = el("div", "product-actions");
       actions.append(button("Buy", "small", () => placeOrder(item)));
       actions.append(
-        button(alreadyReviewed ? "Reviewed" : "Review", "small ghost", () => openReview(item), )
+        button(alreadyReviewed ? "Reviewed" : "Review", "small ghost", () => openReview(item))
       );
       actions.lastChild.disabled = alreadyReviewed;
       footer.append(actions);
@@ -687,7 +647,6 @@ function field(labelText, control, hint) {
 function placeOrder(item) {
   const body = el("div", "checkout");
 
-  // Item summary, so the customer can see what they are buying.
   const summary = el("div", "checkout-item");
   const img = thumbnail(item, "checkout-thumb");
   if (img) summary.append(img);
@@ -710,21 +669,21 @@ function placeOrder(item) {
   address.rows = 3;
   address.maxLength = 300;
   address.name = "delivery_address";
-  address.value = delivery.address;
+  address.value = state.profile?.formatted_address || "";
   address.placeholder = "House / street / area, city, PIN";
 
   const phone = el("input");
   phone.type = "tel";
-  phone.maxLength = 20;
+  phone.inputMode = "numeric";
+  phone.maxLength = 10;
   phone.name = "contact_phone";
-  phone.value = delivery.phone;
+  phone.value = state.profile?.phone || "";
   phone.placeholder = "10-digit mobile number";
 
   body.append(field("Quantity", qty));
   body.append(field("Delivery address", address, "The shop needs this to deliver."));
   body.append(field("Contact phone", phone));
 
-  // Running total, so there is no surprise at confirmation.
   const totalRow = el("div", "checkout-total");
   const totalValue = el("strong", null, money(item.price));
   totalRow.append(el("span", null, "Order total"), totalValue);
@@ -755,16 +714,30 @@ function placeOrder(item) {
       address.focus();
       return;
     }
+    const phoneCheck = validatePhone(phone.value);
+    if (!phone.value.trim()) {
+      error.textContent = "A contact phone number is required.";
+      error.hidden = false;
+      phone.focus();
+      return;
+    }
+    if (!phoneCheck.valid) {
+      error.textContent = phoneCheck.error;
+      error.hidden = false;
+      phone.focus();
+      return;
+    }
 
+    const originalLabel = confirm.textContent;
     confirm.disabled = true;
+    confirm.textContent = "Placing order…";
     try {
-      delivery.save(address.value.trim(), phone.value.trim());
       const order = await request(`/item/${item.id}/order`, {
         method: "POST",
         body: JSON.stringify({
           quantity,
           delivery_address: address.value.trim(),
-          contact_phone: phone.value.trim() || null,
+          contact_phone: phoneCheck.value,
         }),
       });
       closeModal();
@@ -774,6 +747,7 @@ function placeOrder(item) {
       error.textContent = err.message;
       error.hidden = false;
       confirm.disabled = false;
+      confirm.textContent = originalLabel;
     }
   });
 
@@ -839,9 +813,6 @@ function openReview(item) {
   openModal({ title: `Review ${item.name}`, body, actions: [cancel, submit] });
 }
 
-// Item cell shared by the customer and shopkeeper order tables: thumbnail,
-// name and the store it came from, so a row is identifiable at a glance
-// rather than showing a bare product name.
 function orderItemCell(order) {
   const wrap = el("div", "cell-media");
   const item = order.item || {};
@@ -856,19 +827,74 @@ function orderItemCell(order) {
 
 function orderTotalCell(order) {
   if (order.total === null || order.total === undefined) {
-    // Pre-dates price snapshotting and the item is gone, so no honest total.
     return el("span", "muted", "unavailable");
   }
   return el("strong", null, money(order.total));
+}
+
+const TRANSITION_BUTTON_LABEL = {
+  accepted: "Accept",
+  packed: "Mark packed",
+  out_for_delivery: "Out for delivery",
+  completed: "Mark delivered",
+  cancelled: "Cancel",
+};
+
+async function transitionOrder(order, targetStatus, button, refresh) {
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "…";
+  try {
+    const updated = await request(`/order/${order.id}/transition`, {
+      method: "POST",
+      body: JSON.stringify({ status: targetStatus }),
+    });
+    setAlert(`${updated.reference} → ${STATUS_LABELS[targetStatus] || targetStatus}.`, "success");
+    await refresh();
+  } catch (error) {
+    setAlert(error.message, "error");
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+
+function orderActionButtons(order, as, refresh) {
+  const wrap = el("div", "row-actions");
+  wrap.append(button("Details", "small ghost", () => showOrderDetail(order)));
+
+  const options = order.allowed_next || {};
+  Object.entries(options).forEach(([target, actor]) => {
+    if (actor !== "either" && actor !== as) return;
+
+    const label = TRANSITION_BUTTON_LABEL[target] || target;
+    const dangerous = target === "cancelled";
+
+    const actionButton = button(label, `small ${dangerous ? "danger" : ""}`, async () => {
+      if (dangerous) {
+        const ok = await confirmAction({
+          title: "Cancel this order?",
+          message: `${order.reference} — ${order.quantity} × ${order.item?.name || "item"}${
+            order.total != null ? ` (${money(order.total)})` : ""
+          }. This cannot be undone.`,
+          confirmLabel: "Cancel order",
+          danger: true,
+        });
+        if (!ok) return;
+      }
+      await transitionOrder(order, target, actionButton, refresh);
+    });
+    wrap.append(actionButton);
+  });
+
+  return wrap;
 }
 
 function renderMyOrders() {
   const orders = state.myOrders;
 
   els.ordersTotalCount.textContent = orders.length;
-  els.ordersPendingCount.textContent = orders.filter((o) => o.status === "pending").length;
-  els.ordersFulfilledCount.textContent = orders.filter((o) => o.status === "fulfilled").length;
-  // Cancelled orders are excluded: money that was never spent.
+  els.ordersPendingCount.textContent = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled").length;
+  els.ordersFulfilledCount.textContent = orders.filter((o) => o.status === "completed").length;
   els.ordersTotalSpent.textContent = money(
     orders
       .filter((o) => o.status !== "cancelled")
@@ -888,14 +914,7 @@ function renderMyOrders() {
       {
         label: "Actions",
         className: "col-actions",
-        value: (order) => {
-          const wrap = el("div", "row-actions");
-          wrap.append(button("Details", "small ghost", () => showOrderDetail(order)));
-          if (order.status === "pending") {
-            wrap.append(button("Cancel", "small danger", () => cancelOrder(order)));
-          }
-          return wrap;
-        },
+        value: (order) => orderActionButtons(order, "customer", loadCustomerData),
       },
     ],
     orders,
@@ -903,8 +922,6 @@ function renderMyOrders() {
   );
 }
 
-// Full order summary — the "view details / invoice" affordance the table
-// itself has no room for.
 function showOrderDetail(order) {
   const body = el("div", "order-detail");
 
@@ -920,14 +937,15 @@ function showOrderDetail(order) {
   const rows = [
     ["Order number", order.reference],
     ["Placed", new Date(order.created_at).toLocaleString()],
-    ["Status", order.status],
+    ["Status", STATUS_LABELS[order.status] || order.status],
+    ["Last updated", order.updated_at ? new Date(order.updated_at).toLocaleString() : "—"],
     ["Unit price", order.unit_price == null ? "—" : money(order.unit_price)],
     ["Quantity", String(order.quantity)],
     ["Total", order.total == null ? "unavailable" : money(order.total)],
     ["Deliver to", order.delivery_address || "Not provided"],
     ["Contact", order.contact_phone || "Not provided"],
   ];
-  if (order.username) rows.splice(3, 0, ["Customer", order.username]);
+  if (order.username) rows.splice(4, 0, ["Customer", order.username]);
 
   const list = el("dl", "detail-list");
   rows.forEach(([term, value]) => {
@@ -949,26 +967,6 @@ function showOrderDetail(order) {
     body,
     actions: [button("Close", "ghost", () => closeModal())],
   });
-}
-
-async function cancelOrder(order) {
-  const ok = await confirmAction({
-    title: "Cancel this order?",
-    message: `${order.reference} — ${order.quantity} × ${order.item?.name || "item"}${
-      order.total != null ? ` (${money(order.total)})` : ""
-    }. This cannot be undone.`,
-    confirmLabel: "Cancel order",
-    danger: true,
-  });
-  if (!ok) return;
-
-  try {
-    await request(`/order/${order.id}/cancel`, { method: "POST" });
-    setAlert(`${order.reference} cancelled.`, "success");
-    await loadCustomerData();
-  } catch (error) {
-    setAlert(error.message, "error");
-  }
 }
 
 function renderMyReviews() {
@@ -1007,7 +1005,7 @@ function renderAccount() {
   const rows = [
     ["Username", state.username || "—"],
     ["Account type", state.isAdmin ? "Admin" : state.role || "—"],
-    ["Account ID", state.userId != null ? String(state.userId) : "—"],
+    ["Account reference", state.publicRef || "—"],
     ["Orders placed", String(state.myOrders.length)],
     ["Reviews written", String(state.myReviews.length)],
   ];
@@ -1017,23 +1015,46 @@ function renderAccount() {
     els.accountDetails.append(el("dd", null, value));
   });
 
-  els.deliveryForm.querySelector("[name=delivery_address]").value = delivery.address;
-  els.deliveryForm.querySelector("[name=contact_phone]").value = delivery.phone;
+  const profile = state.profile || {};
+  ["address_line1", "address_line2", "city", "state", "pincode", "phone"].forEach((name) => {
+    const input = els.deliveryForm.querySelector(`[name="${name}"]`);
+    if (input) input.value = profile[name] || "";
+  });
 }
 
-els.deliveryForm.addEventListener("submit", (event) => {
+const deliveryFormValidation = bindAddressValidation(els.deliveryForm);
+
+els.deliveryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const data = formData(els.deliveryForm);
-  delivery.save((data.delivery_address || "").trim(), (data.contact_phone || "").trim());
-  setAlert("Delivery details saved. They'll be filled in at checkout.", "success");
+  const values = deliveryFormValidation.getValues();
+  if (!values) return;
+
+  const submitButton = els.deliveryForm.querySelector("button[type=submit]");
+  const originalLabel = submitButton.textContent;
+  submitButton.disabled = true;
+  submitButton.textContent = "Saving…";
+  try {
+    state.profile = await request("/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(values),
+    });
+    setAlert("Delivery details saved. They'll be filled in at checkout.", "success");
+  } catch (error) {
+    setAlert(error.message, "error");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = originalLabel;
+  }
 });
 
-/* ------------------------------------------------------------------ */
-/* Shopkeeper views                                                    */
-/* ------------------------------------------------------------------ */
+async function loadProfile() {
+  try {
+    state.profile = await request("/me/profile");
+  } catch {
+    state.profile = null;
+  }
+}
 
-// GET /store returns every store on the platform, so the seller console has
-// to narrow it down. Admins moderate, so they keep the full list.
 function myStores() {
   if (state.isAdmin) return state.stores;
   return state.stores.filter((store) => store.owner_id === state.userId);
@@ -1063,8 +1084,6 @@ function renderDashboard() {
     (order) => order.status === "pending"
   ).length;
 
-  // Weighted mean across stores: a store with 50 reviews should count for more
-  // than one with a single five-star rating.
   const totalReviews = stores.reduce((sum, store) => sum + (store.review_count || 0), 0);
   const weighted = stores.reduce(
     (sum, store) => sum + (store.average_rating || 0) * (store.review_count || 0),
@@ -1310,15 +1329,11 @@ function renderSales() {
       { label: "Item", value: orderItemCell },
       { label: "Customer", value: (order) => order.username || `User #${order.user_id}` },
       {
-        // The shop cannot deliver without this, so it belongs in the list
-        // rather than hidden behind a detail click.
         label: "Deliver to",
         value: (order) => {
           if (!order.delivery_address) return el("span", "muted", "not provided");
           const wrap = el("div", "cell-meta");
           const line = el("span", "address-line", order.delivery_address);
-          // The cell truncates to keep rows scannable, so expose the full
-          // address on hover — the shop cannot deliver to half an address.
           line.title = order.delivery_address;
           wrap.append(line);
           if (order.contact_phone) wrap.append(el("span", "muted", order.contact_phone));
@@ -1332,42 +1347,12 @@ function renderSales() {
       {
         label: "Actions",
         className: "col-actions",
-        value: (order) => {
-          const wrap = el("div", "row-actions");
-          wrap.append(button("Details", "small ghost", () => showOrderDetail(order)));
-          if (order.status === "pending") {
-            wrap.append(button("Fulfil", "small", () => updateOrder(order, "fulfill")));
-            wrap.append(button("Cancel", "small danger", () => updateOrder(order, "cancel")));
-          }
-          return wrap;
-        },
+        value: (order) => orderActionButtons(order, "shop", loadStoreOrders),
       },
     ],
     state.storeOrders,
     "No orders for this store yet."
   );
-}
-
-async function updateOrder(order, action) {
-  if (action === "cancel") {
-    const ok = await confirmAction({
-      title: "Cancel this customer's order?",
-      message: `${order.reference} from ${order.username || "a customer"}. They will not receive it.`,
-      confirmLabel: "Cancel order",
-      danger: true,
-    });
-    if (!ok) return;
-  }
-  try {
-    await request(`/order/${order.id}/${action}`, { method: "POST" });
-    setAlert(
-      `${order.reference} ${action === "fulfill" ? "marked as delivered" : "cancelled"}.`,
-      "success"
-    );
-    await loadStoreOrders();
-  } catch (error) {
-    setAlert(error.message, "error");
-  }
 }
 
 function renderFeedback() {
@@ -1380,7 +1365,6 @@ function renderFeedback() {
     ? `${data.review_count} review${data.review_count === 1 ? "" : "s"}`
     : "no reviews";
 
-  // Distribution bars, 5 stars down to 1.
   const max = Math.max(1, ...Object.values(data.rating_breakdown || {}));
   els.ratingBreakdown.replaceChildren(
     ...[5, 4, 3, 2, 1].map((star) => {
@@ -1444,10 +1428,6 @@ function renderFeedback() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Admin views                                                         */
-/* ------------------------------------------------------------------ */
-
 function renderUsers() {
   renderTable(
     els.usersTable,
@@ -1457,7 +1437,7 @@ function renderUsers() {
       { label: "Admin", value: (user) => (user.is_admin ? "yes" : "—") },
       {
         label: "Status",
-        value: (user) => (user.is_banned ? statusPill("cancelled") : statusPill("fulfilled")),
+        value: (user) => accountStatusPill(user.is_banned),
       },
       { label: "Stores", value: (user) => user.stores?.length || 0 },
       {
@@ -1503,10 +1483,6 @@ function renderActivity() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Data loading                                                        */
-/* ------------------------------------------------------------------ */
-
 function populateSelect(select, rows, valueKey = "id", labelKey = "name") {
   const previous = select.value;
   select.replaceChildren(
@@ -1526,13 +1502,12 @@ async function loadCustomerData() {
     request("/item"),
     request("/store"),
     request("/orders"),
+    loadProfile(),
   ]);
   state.items = items || [];
   state.stores = stores || [];
   state.myOrders = orders || [];
 
-  // There is no "my reviews" endpoint, so pick them out of each item's review
-  // list by matching the signed-in user's id.
   const reviewGroups = await Promise.all(
     state.items.map((item) =>
       request(`/item/${item.id}/review`)
@@ -1553,7 +1528,6 @@ async function loadShopkeeperData() {
   state.items = items || [];
   state.stores = stores || [];
 
-  // Tags are per-store, and only the caller's own stores are worth fetching.
   const owned = myStores();
   const tagGroups = await Promise.all(
     owned.map((store) => request(`/store/${store.id}/tag`).catch(() => []))
@@ -1572,9 +1546,6 @@ async function loadShopkeeperData() {
   renderTags();
   renderDashboard();
 
-  // The dashboard shows a "Latest Feedback" panel, so fetch the first store's
-  // reviews up front instead of leaving it empty until the reviews tab is
-  // opened.
   if (owned.length) await loadFeedback();
 }
 
@@ -1641,7 +1612,6 @@ async function loadData() {
 }
 
 async function enterConsole() {
-  // Trust the server over anything cached in localStorage.
   try {
     const me = await request("/me");
     storeSession({
@@ -1650,6 +1620,7 @@ async function enterConsole() {
       username: me.username,
       is_admin: me.is_admin,
     });
+    state.publicRef = me.public_ref;
   } catch {
     clearSession();
     showAuthGate();
@@ -1657,14 +1628,9 @@ async function enterConsole() {
   }
 
   showConsole();
-  applyRoleVisibility();
   await loadData();
   setView(location.hash.replace("#", ""));
 }
-
-/* ------------------------------------------------------------------ */
-/* Shopkeeper forms                                                    */
-/* ------------------------------------------------------------------ */
 
 async function submitForm(form, path, transform, onDone) {
   const submit = form.querySelector("button[type=submit]");
@@ -1728,8 +1694,6 @@ els.feedbackStoreSelect.addEventListener("change", loadFeedback);
 
 els.refreshData.addEventListener("click", async () => {
   await loadData();
-  // loadData only refreshes the role's core data; the on-demand views need
-  // their own reload or Refresh would appear to do nothing on them.
   const active = document.querySelector(".view.active")?.dataset.view;
   if (active === "sales") await loadStoreOrders();
   if (active === "feedback") await loadFeedback();
@@ -1740,10 +1704,6 @@ els.browseSearch.addEventListener("input", (event) => {
   state.search = event.target.value;
   renderCatalogue();
 });
-
-/* ------------------------------------------------------------------ */
-/* Boot                                                                */
-/* ------------------------------------------------------------------ */
 
 setAuthRole("customer");
 if (state.accessToken) {

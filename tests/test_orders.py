@@ -61,7 +61,31 @@ class TestOrderReference:
             f"/item/{item['id']}/order", json={"quantity": 1}, headers=buyer
         ).get_json()
         assert order["reference"].startswith("ORD-")
-        assert order["reference"] == f"ORD-{order['id']:05d}"
+
+    def test_reference_is_opaque_not_derived_from_the_id(self, client, auth):
+        """Regression guard: references used to be f"ORD-{id:05d}", directly
+        exposing the row's sequential primary key and how many orders exist
+        platform-wide. They're now a random token — see references.py."""
+        _, _, item = _shop(client, auth)
+        buyer, _, _ = auth("buyer", role="customer")
+        order = client.post(
+            f"/item/{item['id']}/order", json={"quantity": 1}, headers=buyer
+        ).get_json()
+        assert order["reference"] != f"ORD-{order['id']:05d}"
+        suffix = order["reference"].removeprefix("ORD-")
+        assert len(suffix) == 8
+        assert all(c in "0123456789ABCDEF" for c in suffix)
+
+    def test_two_orders_get_different_references(self, client, auth):
+        _, _, item = _shop(client, auth)
+        buyer, _, _ = auth("buyer", role="customer")
+        first = client.post(
+            f"/item/{item['id']}/order", json={"quantity": 1}, headers=buyer
+        ).get_json()
+        second = client.post(
+            f"/item/{item['id']}/order", json={"quantity": 1}, headers=buyer
+        ).get_json()
+        assert first["reference"] != second["reference"]
 
     def test_reference_is_stable_across_reads(self, client, auth):
         _, _, item = _shop(client, auth)

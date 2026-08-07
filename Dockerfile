@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 # Don't buffer stdout — logs show up in Render/Docker immediately.
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app
 
 WORKDIR /app
 

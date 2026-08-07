@@ -44,7 +44,7 @@ class Item(MethodView):
 
         # Previously only name and price were applied, so an image_url edit
         # returned 200 and silently changed nothing.
-        for field in ("name", "price", "image_url"):
+        for field in ("name", "price", "image_url", "stock_quantity"):
             if field in item_data:
                 setattr(item, field, item_data[field])
 

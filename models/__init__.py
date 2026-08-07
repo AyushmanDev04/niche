@@ -11,6 +11,7 @@ from models.store_worker import StoreWorkerModel
 from models.activity import ActivityLogModel
 from models.order import OrderModel
 from models.token_blocklist import TokenBlocklistModel
+from models.user_profile import UserProfileModel
 
 
 # --- Aggregate rating columns -------------------------------------------
@@ -75,4 +76,5 @@ __all__ = [
     "ActivityLogModel",
     "OrderModel",
     "TokenBlocklistModel",
+    "UserProfileModel",
 ]

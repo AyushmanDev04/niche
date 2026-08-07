@@ -844,7 +844,18 @@ label {
   color: var(--warning);
 }
 
-.status-fulfilled {
+.status-accepted,
+.status-packed {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--primary);
+}
+
+.status-out_for_delivery {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.status-completed {
   background: var(--success-soft);
   color: var(--success);
 }
@@ -852,6 +863,40 @@ label {
 .status-cancelled {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.field-optional {
+  font-weight: 400;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: -2px;
+}
+
+.field-error[hidden] {
+  display: none;
+}
+
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ----------------------------- Ratings ------------------------------ */

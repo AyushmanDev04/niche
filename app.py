@@ -49,8 +49,14 @@ def create_app():
     app.config["OPENAPI_URL_PREFIX"] = "/api-docs"
     app.config["OPENAPI_SWAGGER_UI_PATH"] = "/swagger-ui"
     app.config["OPENAPI_SWAGGER_UI_URL"] = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///data.db")
+    database_url = os.getenv("DATABASE_URL", "sqlite:///data.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    if database_url.startswith("postgresql"):
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "connect_args": {"options": "-c lock_timeout=3000"}
+        }
     app.config["JWT_SECRET_KEY"] = _require_env("JWT_SECRET_KEY")
     app.config["SECRET_KEY"] = _require_env("SECRET_KEY")
 

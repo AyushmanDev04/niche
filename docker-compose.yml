@@ -17,8 +17,28 @@ services:
       - DATABASE_URL=postgresql://postgres:password@db:5432/myapp
       - CORS_ORIGINS=http://localhost:5000
       - PORT=5000
+      - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["celery", "-A", "celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/myapp
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -34,6 +54,15 @@ services:
       # `depends_on` alone only waits for the container to start, not for
       # Postgres to accept connections, so the web service could race it.
       test: ["CMD-SHELL", "pg_isready -U postgres -d myapp"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 5s
       retries: 10
