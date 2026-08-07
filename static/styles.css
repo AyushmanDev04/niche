@@ -680,6 +680,27 @@ label {
   font-size: 1.05rem;
 }
 
+.product-price-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.stock-low {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.stock-out {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .product-actions {
   display: flex;
   gap: 6px;

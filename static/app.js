@@ -1,3 +1,5 @@
+const LOW_STOCK = 5;
+
 const sessionStore = createStore({
   apiBase: localStorage.getItem("niche.apiBase") || window.location.origin,
   accessToken: localStorage.getItem("niche.accessToken") || "",
@@ -619,11 +621,17 @@ function renderCatalogue() {
       }
 
       const footer = el("div", "product-footer");
-      footer.append(el("strong", "price", money(item.price)));
+      const priceRow = el("div", "product-price-row");
+      priceRow.append(el("strong", "price", money(item.price)));
+      priceRow.append(stockLabel(item));
+      footer.append(priceRow);
 
+      const soldOut = stockOf(item) === 0;
       const alreadyReviewed = state.myReviews.some((review) => review.item_id === item.id);
       const actions = el("div", "product-actions");
-      actions.append(button("Buy", "small", () => placeOrder(item)));
+      const buy = button(soldOut ? "Sold out" : "Buy", "small", () => placeOrder(item));
+      buy.disabled = soldOut;
+      actions.append(buy);
       actions.append(
         button(alreadyReviewed ? "Reviewed" : "Review", "small ghost", () => openReview(item))
       );
@@ -644,6 +652,18 @@ function field(labelText, control, hint) {
   return label;
 }
 
+function stockOf(item) {
+  return item.stock_quantity == null ? null : Number(item.stock_quantity);
+}
+
+function stockLabel(item) {
+  const left = stockOf(item);
+  if (left === null) return el("span", "stock stock-untracked", "In stock");
+  if (left === 0) return el("span", "stock stock-out", "Out of stock");
+  if (left <= LOW_STOCK) return el("span", "stock stock-low", `Only ${left} left`);
+  return el("span", "stock", `${left} in stock`);
+}
+
 function placeOrder(item) {
   const body = el("div", "checkout");
 
@@ -657,10 +677,11 @@ function placeOrder(item) {
   summary.append(meta);
   body.append(summary);
 
+  const available = stockOf(item);
   const qty = el("input");
   qty.type = "number";
   qty.min = "1";
-  qty.max = "1000";
+  qty.max = String(available === null ? 1000 : Math.min(available, 1000));
   qty.step = "1";
   qty.value = "1";
   qty.name = "quantity";
@@ -680,7 +701,9 @@ function placeOrder(item) {
   phone.value = state.profile?.phone || "";
   phone.placeholder = "10-digit mobile number";
 
-  body.append(field("Quantity", qty));
+  body.append(
+    field("Quantity", qty, available === null ? undefined : `${available} available.`)
+  );
   body.append(field("Delivery address", address, "The shop needs this to deliver."));
   body.append(field("Contact phone", phone));
 
@@ -705,6 +728,14 @@ function placeOrder(item) {
     const quantity = Number(qty.value);
     if (!Number.isInteger(quantity) || quantity < 1) {
       error.textContent = "Quantity must be a whole number of at least 1.";
+      error.hidden = false;
+      return;
+    }
+    if (available !== null && quantity > available) {
+      error.textContent =
+        available === 0
+          ? "This item is out of stock."
+          : `Only ${available} left in stock.`;
       error.hidden = false;
       return;
     }
@@ -1185,6 +1216,16 @@ function renderItems() {
       { label: "Item", value: (item) => item.name },
       { label: "Price", value: (item) => money(item.price) },
       {
+        label: "Stock",
+        value: (item) => {
+          const left = stockOf(item);
+          if (left === null) return el("span", "muted", "untracked");
+          if (left === 0) return el("span", "stock stock-out", "0");
+          return el("span", left <= LOW_STOCK ? "stock stock-low" : null, String(left));
+        },
+        className: "col-num",
+      },
+      {
         label: "Rating",
         value: (item) =>
           item.review_count
@@ -1235,6 +1276,13 @@ function editItem(item) {
   price.step = "0.01";
   price.value = item.price ?? "";
 
+  const stock = el("input");
+  stock.type = "number";
+  stock.min = "0";
+  stock.step = "1";
+  stock.value = item.stock_quantity ?? "";
+  stock.placeholder = "Unlimited";
+
   const imageUrl = el("input");
   imageUrl.type = "url";
   imageUrl.value = item.image_url || "";
@@ -1248,6 +1296,7 @@ function editItem(item) {
       "Changing this affects future orders only — past orders keep the price paid."
     )
   );
+  body.append(field("Stock", stock, "Leave blank to stop tracking stock for this item."));
   body.append(field("Image URL", imageUrl, "Leave blank for no image."));
 
   const error = el("p", "modal-error");
@@ -1261,7 +1310,17 @@ function editItem(item) {
       error.hidden = false;
       return;
     }
-    const payload = { name: name.value.trim(), price: Number(price.value) };
+    const rawStock = stock.value.trim();
+    if (rawStock && (!Number.isInteger(Number(rawStock)) || Number(rawStock) < 0)) {
+      error.textContent = "Stock must be a whole number of 0 or more.";
+      error.hidden = false;
+      return;
+    }
+    const payload = {
+      name: name.value.trim(),
+      price: Number(price.value),
+      stock_quantity: rawStock === "" ? null : Number(rawStock),
+    };
     if (imageUrl.value.trim()) payload.image_url = imageUrl.value.trim();
 
     save.disabled = true;
@@ -1662,6 +1721,7 @@ els.itemForm.addEventListener("submit", (event) => {
       price: Number(data.price),
       store_id: Number(data.store_id),
       ...(data.image_url ? { image_url: data.image_url } : {}),
+      ...(data.stock_quantity?.trim() ? { stock_quantity: Number(data.stock_quantity) } : {}),
     }),
     loadShopkeeperData
   );

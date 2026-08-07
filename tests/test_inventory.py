@@ -124,3 +124,68 @@ class TestStockRestoredOnCancellation:
         assert client.post(
             f"/item/{item['id']}/order", json={"quantity": 1}, headers=buyer
         ).status_code == 201
+
+
+class TestStockEditing:
+    """The shopkeeper's edit dialog is the only way stock gets set after
+    creation, so the PUT path needs to round-trip both a number and a null."""
+
+    def test_stock_can_be_changed_by_the_shop(self, client, auth):
+        owner, _, item = _tracked_item(client, auth, stock=5)
+
+        response = client.put(
+            f"/item/{item['id']}",
+            json={"name": item["name"], "price": item["price"], "stock_quantity": 12},
+            headers=owner,
+        )
+        assert response.status_code == 200
+        assert response.get_json()["stock_quantity"] == 12
+
+    def test_explicit_null_stops_tracking_stock(self, client, auth):
+        owner, _, item = _tracked_item(client, auth, stock=3)
+
+        response = client.put(
+            f"/item/{item['id']}",
+            json={"name": item["name"], "price": item["price"], "stock_quantity": None},
+            headers=owner,
+        )
+        assert response.status_code == 200
+        assert response.get_json()["stock_quantity"] is None
+
+        buyer, _, _ = auth("buyer", role="customer")
+        assert client.post(
+            f"/item/{item['id']}/order", json={"quantity": 50}, headers=buyer
+        ).status_code == 201
+
+    def test_omitting_stock_leaves_it_untouched(self, client, auth):
+        owner, _, item = _tracked_item(client, auth, stock=7)
+
+        client.put(
+            f"/item/{item['id']}",
+            json={"name": "Renamed", "price": item["price"]},
+            headers=owner,
+        )
+        assert client.get(f"/item/{item['id']}", headers=owner).get_json()["stock_quantity"] == 7
+
+    def test_negative_stock_is_rejected(self, client, auth):
+        owner, _, item = _tracked_item(client, auth, stock=4)
+
+        response = client.put(
+            f"/item/{item['id']}",
+            json={"name": item["name"], "price": item["price"], "stock_quantity": -1},
+            headers=owner,
+        )
+        assert response.status_code == 422
+        assert client.get(f"/item/{item['id']}", headers=owner).get_json()["stock_quantity"] == 4
+
+    def test_a_customer_cannot_change_stock(self, client, auth):
+        owner, _, item = _tracked_item(client, auth, stock=4)
+        buyer, _, _ = auth("buyer", role="customer")
+
+        response = client.put(
+            f"/item/{item['id']}",
+            json={"name": item["name"], "price": item["price"], "stock_quantity": 999},
+            headers=buyer,
+        )
+        assert response.status_code == 403
+        assert client.get(f"/item/{item['id']}", headers=owner).get_json()["stock_quantity"] == 4
