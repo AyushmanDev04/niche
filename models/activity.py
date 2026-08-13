@@ -1,5 +1,5 @@
-from datetime import datetime
 from db import db
+from timeutils import utcnow
 
 
 class ActivityLogModel(db.Model):
@@ -10,6 +10,6 @@ class ActivityLogModel(db.Model):
     username = db.Column(db.String(80), nullable=True)
     action = db.Column(db.String(80), nullable=False)
     details = db.Column(db.String(500), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
     user = db.relationship("UserModel", back_populates="activity_logs")

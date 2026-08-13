@@ -88,6 +88,86 @@ class TestLogoutPersistence:
         assert client.get("/store", headers=headers).status_code == 401
 
 
+class TestAnonymousBrowsing:
+    """The catalogue is public. GET /item and GET /store returned 401 to
+    signed-out visitors, so the shop could not be seen before registering —
+    while GET /item/<id>/review was already public."""
+
+    def test_item_list_is_public(self, client, auth):
+        owner, _, _ = auth("keeper", role="shopkeeper")
+        store = client.post("/store", json={"name": "Shop"}, headers=owner).get_json()
+        client.post(
+            "/item",
+            json={"name": "Widget", "price": 9.99, "store_id": store["id"]},
+            headers=owner,
+        )
+
+        response = client.get("/item")
+        assert response.status_code == 200
+        assert [item["name"] for item in response.get_json()] == ["Widget"]
+
+    def test_store_list_and_detail_are_public(self, client, auth):
+        owner, _, _ = auth("keeper", role="shopkeeper")
+        store = client.post("/store", json={"name": "Shop"}, headers=owner).get_json()
+
+        assert client.get("/store").status_code == 200
+        assert client.get(f"/store/{store['id']}").status_code == 200
+
+    def test_item_detail_is_public(self, client, auth):
+        owner, _, _ = auth("keeper", role="shopkeeper")
+        store = client.post("/store", json={"name": "Shop"}, headers=owner).get_json()
+        item = client.post(
+            "/item",
+            json={"name": "Widget", "price": 9.99, "store_id": store["id"]},
+            headers=owner,
+        ).get_json()
+
+        assert client.get(f"/item/{item['id']}").status_code == 200
+
+    def test_hidden_items_stay_hidden_from_anonymous_visitors(self, client, auth):
+        """Opening the catalogue up must not open up what staff hid."""
+        owner, _, _ = auth("keeper", role="shopkeeper")
+        store = client.post("/store", json={"name": "Shop"}, headers=owner).get_json()
+        item = client.post(
+            "/item",
+            json={"name": "Secret", "price": 9.99, "store_id": store["id"]},
+            headers=owner,
+        ).get_json()
+        assert client.post(f"/item/{item['id']}/hide", headers=owner).status_code == 200
+
+        assert client.get(f"/item/{item['id']}").status_code == 404
+        assert client.get("/item").get_json() == []
+
+    def test_writing_still_requires_a_token(self, client, auth):
+        """Only the reads became public."""
+        owner, _, _ = auth("keeper", role="shopkeeper")
+        store = client.post("/store", json={"name": "Shop"}, headers=owner).get_json()
+
+        assert client.post("/store", json={"name": "Anon"}).status_code == 401
+        assert client.post(
+            "/item", json={"name": "Anon", "price": 1.0, "store_id": store["id"]}
+        ).status_code == 401
+
+
+class TestActivityFeedLimit:
+    def test_negative_limit_does_not_reach_the_query(self, client, auth):
+        """?limit=-1 was passed straight to .limit(), which PostgreSQL rejects
+        outright. Clamped to 0, it is an empty page rather than an error."""
+        admin, _, _ = auth("admin", admin=True)
+
+        response = client.get("/activity?limit=-1", headers=admin)
+        assert response.status_code == 200
+        assert response.get_json() == []
+
+    def test_limit_is_capped_and_honoured(self, client, auth):
+        admin, _, _ = auth("admin", admin=True)
+        for index in range(3):
+            auth(f"extra{index}")
+
+        assert len(client.get("/activity?limit=2", headers=admin).get_json()) == 2
+        assert client.get("/activity?limit=99999", headers=admin).status_code == 200
+
+
 class TestPrivilegeSeparation:
     def test_non_admin_cannot_list_users(self, client, auth):
         headers, _, _ = auth("normal")

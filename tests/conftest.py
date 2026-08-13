@@ -54,6 +54,40 @@ def client(app):
 
 
 @pytest.fixture()
+def delivered_buyer(client, auth):
+    """A customer who has actually received `item`, and so may review it.
+
+    POST /item/<id>/review requires a completed order for the item, so every
+    review test needs a buyer who has been walked through the whole lifecycle
+    rather than one who merely registered. `owner_headers` is the shop side —
+    only staff can advance an order past pending.
+    """
+
+    def _make(item, username, owner_headers, quantity=1, role="customer"):
+        headers, user_id, tokens = auth(username, role=role)
+
+        order = client.post(
+            f"/item/{item['id']}/order",
+            json={"quantity": quantity},
+            headers=headers,
+        )
+        assert order.status_code == 201, order.get_json()
+        order_id = order.get_json()["id"]
+
+        for status in ("accepted", "packed", "out_for_delivery", "completed"):
+            moved = client.post(
+                f"/order/{order_id}/transition",
+                json={"status": status},
+                headers=owner_headers,
+            )
+            assert moved.status_code == 200, moved.get_json()
+
+        return headers, user_id, tokens
+
+    return _make
+
+
+@pytest.fixture()
 def auth(client):
     """Register + log in a user, returning (headers, user_id, tokens).
 

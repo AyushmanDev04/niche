@@ -51,6 +51,27 @@ class TestOrderPricing:
         ).get_json()
         assert order["total"] == 0.30
 
+    def test_item_price_is_stored_as_exact_decimal(self, client, auth):
+        """items.price was Float while orders.unit_price was already
+        Numeric(10, 2), so the value a price was snapshotted *from* was the
+        one place money still went through binary floating point."""
+        from decimal import Decimal
+
+        from db import db
+        from models import ItemModel
+
+        _, _, item = _shop(client, auth, price=19.99)
+
+        with client.application.app_context():
+            stored = db.session.get(ItemModel, item["id"]).price
+
+        assert isinstance(stored, Decimal)
+        assert stored == Decimal("19.99")
+
+    def test_item_price_survives_a_round_trip_unrounded(self, client, auth):
+        owner, _, item = _shop(client, auth, price=0.10)
+        assert client.get(f"/item/{item['id']}", headers=owner).get_json()["price"] == 0.10
+
 
 class TestOrderReference:
     def test_order_has_a_quotable_reference(self, client, auth):

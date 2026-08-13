@@ -1,6 +1,6 @@
 from models import StoreModel, UserModel, ReviewModel, ItemModel
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from db import db
 
 from flask.views import MethodView
@@ -16,9 +16,10 @@ blp = Blueprint("stores", __name__, description="Operations on stores")
 
 @blp.route("/store/<int:store_id>")
 class Store(MethodView):
-    @jwt_required()
+    @jwt_required(optional=True)
     @blp.response(200, StoreSchema)
     def get(self, store_id):
+        """Public. Storefronts are browsable without an account."""
         store = StoreModel.query.get_or_404(store_id)
         return store
 
@@ -35,10 +36,23 @@ class Store(MethodView):
 
 @blp.route("/store")
 class StoreList(MethodView):
-    @jwt_required()
+    @jwt_required(optional=True)
     @blp.response(200, StoreSchema(many=True))
     def get(self):
-        return StoreModel.query.all()
+        """Public, like GET /store/<id>.
+
+        Eager-loaded because StoreSchema dumps items, tags and workers: left
+        lazy, this issued three queries per store on top of the first, so the
+        storefront list grew a round trip for every shop that opened.
+        """
+        return (
+            StoreModel.query.options(
+                selectinload(StoreModel.items),
+                selectinload(StoreModel.tags),
+                selectinload(StoreModel.workers),
+            )
+            .all()
+        )
 
     @jwt_required()
     @blp.arguments(StoreSchema)
@@ -100,7 +114,7 @@ class StoreReviews(MethodView):
                 "average_rating": round(float(item.average_rating or 0), 2),
                 "review_count": item.review_count,
             }
-            for item in store.items.all()
+            for item in store.items
         ]
 
         return {

@@ -1,5 +1,33 @@
 """Regression tests for the correctness bugs fixed here."""
 
+import contextlib
+
+import sqlalchemy as sa
+
+
+@contextlib.contextmanager
+def count_queries(app):
+    """Count SQL statements issued while the block runs.
+
+    The list endpoints used to grow a round trip per row, which is invisible
+    to an assertion on the response body and only shows up as a slow page.
+    """
+    statements = []
+
+    with app.app_context():
+        from db import db
+
+        engine = db.engine
+
+    def record(*args, **kwargs):
+        statements.append(1)
+
+    sa.event.listen(engine, "before_cursor_execute", record, named=False)
+    try:
+        yield statements
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", record)
+
 
 def _store_with_item(client, headers, store_name, item_name, **item_fields):
     store = client.post("/store", json={"name": store_name}, headers=headers).get_json()
@@ -99,10 +127,10 @@ class TestValidation:
         )
         assert response.status_code == 422
 
-    def test_one_review_per_user_per_item(self, client, auth):
+    def test_one_review_per_user_per_item(self, client, auth, delivered_buyer):
         owner, _, _ = auth("owner", role="shopkeeper")
         _, item = _store_with_item(client, owner, "Shop", "Widget")
-        shopper, _, _ = auth("shopper")
+        shopper, _, _ = delivered_buyer(item, "shopper", owner)
 
         first = client.post(
             f"/item/{item['id']}/review", json={"rating": 5}, headers=shopper
@@ -133,7 +161,9 @@ class TestItemUpdate:
 
 
 class TestCascadingDeletes:
-    def test_deleting_a_user_with_orders_and_reviews_succeeds(self, client, auth):
+    def test_deleting_a_user_with_orders_and_reviews_succeeds(
+        self, client, auth, delivered_buyer
+    ):
         """reviews.user_id / orders.user_id are NOT NULL with no cascade, so
         this raised a foreign key violation on any database that enforces
         them (i.e. Postgres, but not SQLite by default)."""
@@ -141,10 +171,9 @@ class TestCascadingDeletes:
         owner, _, _ = auth("owner", role="shopkeeper")
         _, item = _store_with_item(client, owner, "Shop", "Widget")
 
-        shopper, shopper_id, shopper_tokens = auth("shopper")
-        assert client.post(
-            f"/item/{item['id']}/order", json={"quantity": 2}, headers=shopper
-        ).status_code == 201
+        shopper, shopper_id, shopper_tokens = delivered_buyer(
+            item, "shopper", owner, quantity=2
+        )
         assert client.post(
             f"/item/{item['id']}/review", json={"rating": 4}, headers=shopper
         ).status_code == 201
@@ -190,14 +219,120 @@ class TestTokenRefresh:
         assert client.post("/refresh", headers=refresh_headers).status_code == 200
         assert client.post("/refresh", headers=refresh_headers).status_code == 401
 
+    def test_refresh_returns_a_new_refresh_token(self, client, auth):
+        """The bug this guards: /refresh revoked the refresh token it was
+        called with but handed back only an access token, so the client was
+        left with a dead refresh token and was logged out at the next expiry."""
+        _, _, tokens = auth("someone")
+
+        body = client.post(
+            "/refresh",
+            headers={"Authorization": f"Bearer {tokens['refresh_token']}"},
+        ).get_json()
+
+        assert "refresh_token" in body, "refresh token was not rotated"
+        assert body["refresh_token"] != tokens["refresh_token"]
+
+    def test_the_rotated_refresh_token_works_for_the_next_refresh(self, client, auth):
+        """Rotation has to chain: refreshing twice in a row is the ordinary
+        case for a long session, and it is what silently broke before."""
+        _, _, tokens = auth("someone")
+
+        first = client.post(
+            "/refresh",
+            headers={"Authorization": f"Bearer {tokens['refresh_token']}"},
+        ).get_json()
+
+        second = client.post(
+            "/refresh",
+            headers={"Authorization": f"Bearer {first['refresh_token']}"},
+        )
+        assert second.status_code == 200, second.get_json()
+
+        new_access = second.get_json()["access_token"]
+        assert client.get(
+            "/me", headers={"Authorization": f"Bearer {new_access}"}
+        ).status_code == 200
+
 
 class TestReviewSerialisation:
-    def test_review_exposes_item_id(self, client, auth):
+    def test_review_exposes_item_id(self, client, auth, delivered_buyer):
         """item_id was load_only, so the frontend had to infer it."""
         owner, _, _ = auth("owner", role="shopkeeper")
         _, item = _store_with_item(client, owner, "Shop", "Widget")
-        shopper, _, _ = auth("shopper")
+        shopper, _, _ = delivered_buyer(item, "shopper", owner)
         client.post(f"/item/{item['id']}/review", json={"rating": 5}, headers=shopper)
 
         reviews = client.get(f"/item/{item['id']}/review").get_json()
         assert reviews[0]["item_id"] == item["id"]
+
+
+class TestListEndpointsDoNotScaleWithRows:
+    """Both list endpoints used to issue queries proportional to how much was
+    in the database. /store cost three round trips per store — items, tags and
+    workers — which is what made the console slow as shops were added."""
+
+    def _seed(self, client, headers, stores, prefix, items_each=3):
+        for s in range(stores):
+            response = client.post(
+                "/store", json={"name": f"{prefix}Store{s}"}, headers=headers
+            )
+            assert response.status_code == 201, response.get_json()
+            store = response.get_json()
+            for i in range(items_each):
+                client.post(
+                    "/item",
+                    json={
+                        "name": f"Item{s}_{i}",
+                        "price": 9.99,
+                        "store_id": store["id"],
+                    },
+                    headers=headers,
+                )
+
+    def test_store_list_query_count_is_flat(self, client, auth, app):
+        headers, _, _ = auth("keeper", role="shopkeeper")
+
+        self._seed(client, headers, stores=2, prefix="A")
+        with count_queries(app) as small:
+            assert client.get("/store").status_code == 200
+
+        self._seed(client, headers, stores=10, prefix="B")
+        with count_queries(app) as large:
+            assert client.get("/store").status_code == 200
+
+        assert len(large) == len(small), (
+            f"/store issued {len(small)} queries for 2 stores and "
+            f"{len(large)} for 12 — it scales with row count"
+        )
+
+    def test_item_list_query_count_is_flat(self, client, auth, app):
+        headers, _, _ = auth("keeper", role="shopkeeper")
+
+        self._seed(client, headers, stores=2, prefix="A")
+        with count_queries(app) as small:
+            assert client.get("/item").status_code == 200
+
+        self._seed(client, headers, stores=10, prefix="B")
+        with count_queries(app) as large:
+            assert client.get("/item").status_code == 200
+
+        assert len(large) == len(small)
+
+
+class TestItemsEmbedIdentifiableReviews:
+    def test_item_reviews_expose_user_id(self, client, auth, delivered_buyer):
+        """Without user_id on the embedded reviews the console could not tell
+        its own reviews from anyone else's, so it re-fetched
+        /item/<id>/review once per item on every page load."""
+        owner, _, _ = auth("owner", role="shopkeeper")
+        _, item = _store_with_item(client, owner, "Shop", "Widget")
+        shopper, shopper_id, _ = delivered_buyer(item, "shopper", owner)
+        client.post(f"/item/{item['id']}/review", json={"rating": 5}, headers=shopper)
+
+        listed = client.get("/item").get_json()
+        embedded = listed[0]["reviews"][0]
+
+        assert embedded["user_id"] == shopper_id
+        assert embedded["item_id"] == item["id"]
+        assert embedded["username"] == "shopper"

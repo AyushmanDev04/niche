@@ -18,7 +18,7 @@ class TagsInStore(MethodView):
     @blp.response(200, TagSchema(many=True))
     def get(self, store_id):
         store = StoreModel.query.get_or_404(store_id)
-        return store.tags.all()
+        return store.tags
 
     @jwt_required()
     @blp.arguments(TagSchema)

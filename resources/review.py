@@ -5,9 +5,10 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from db import db
-from models import ReviewModel, ItemModel
+from models import ReviewModel, ItemModel, OrderModel
 from schemas import ReviewSchema
 from resources.permissions import can_work_store, is_admin, require_customer
+from order_lifecycle import OrderStatus
 from activity_log import log_activity
 
 blp = Blueprint("Reviews", "reviews", description="Operations on reviews")
@@ -32,19 +33,45 @@ class ItemReviewList(MethodView):
     @blp.arguments(ReviewSchema)
     @blp.response(201, ReviewSchema)
     def post(self, review_data, item_id):
+        """Only a customer who has ordered this item may review it.
+
+        A rating carries weight because it comes from someone who bought the
+        thing. Without the purchase check any account could rate any item —
+        a shop could bury a competitor, or inflate itself through throwaway
+        accounts, without a single order being placed.
+
+        Any order that has not been cancelled counts, rather than only a
+        delivered one. Requiring delivery put the right to review behind the
+        shop's own queue: only staff can advance an order past `pending`, so
+        a shop that never worked its orders silenced every customer it had.
+        A cancelled order still proves nothing, and remains excluded.
+        """
         require_customer()
 
         item = ItemModel.query.get_or_404(item_id)
         if item.is_hidden:
             abort(404, message="Item not found.")
 
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
+
+        has_ordered = db.session.query(
+            OrderModel.query.filter(
+                OrderModel.user_id == user_id,
+                OrderModel.item_id == item_id,
+                OrderModel.status != OrderStatus.CANCELLED,
+            ).exists()
+        ).scalar()
+        if not has_ordered:
+            abort(
+                403,
+                message="You can only review an item you have ordered.",
+            )
 
         review = ReviewModel(
             rating=review_data["rating"],
             comment=review_data.get("comment"),
             item_id=item_id,
-            user_id=int(user_id),
+            user_id=user_id,
         )
 
         try:
