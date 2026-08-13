@@ -396,7 +396,14 @@
               <div id="perItemRatings" class="compact-list empty-state">No items.</div>
             </section>
             <section class="panel wide">
-              <div class="panel-heading"><h3>What customers said</h3></div>
+              <div class="panel-heading">
+                <h3>What customers said</h3>
+                <div id="reviewFilter" class="review-filter" role="group" aria-label="Filter reviews">
+                  <button class="filter-button active" type="button" data-review-filter="latest">Latest</button>
+                  <button class="filter-button" type="button" data-review-filter="good">Good</button>
+                  <button class="filter-button" type="button" data-review-filter="bad">Bad</button>
+                </div>
+              </div>
               <div id="feedbackList" class="review-list empty-state">No reviews yet.</div>
             </section>
           </div>

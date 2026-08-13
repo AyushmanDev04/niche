@@ -261,6 +261,28 @@ label {
   display: none;
 }
 
+.review-filter {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel-soft);
+  border-radius: var(--radius);
+}
+
+.filter-button {
+  background: transparent;
+  color: var(--muted);
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+}
+
+.filter-button.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
 .auth-form.active {
   display: grid;
 }

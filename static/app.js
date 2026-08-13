@@ -51,6 +51,7 @@ const state = {
   myReviews: [],
   storeOrders: [],
   feedback: null,
+  feedbackFilter: "latest",
   profile: null,
   publicRef: null,
   users: [],
@@ -111,6 +112,7 @@ const els = {
   ratingBreakdown: $("#ratingBreakdown"),
   perItemRatings: $("#perItemRatings"),
   feedbackList: $("#feedbackList"),
+  reviewFilter: $("#reviewFilter"),
   usersTable: $("#usersTable"),
   activityTable: $("#activityTable"),
   ordersTotalCount: $("#ordersTotalCount"),
@@ -906,6 +908,16 @@ function orderActionButtons(order, as, refresh) {
   const wrap = el("div", "row-actions");
   wrap.append(button("Details", "small ghost", () => showOrderDetail(order)));
 
+  if (as === "customer" && order.item && order.status !== "cancelled") {
+    const reviewed = state.myReviews.some((row) => row.item_id === order.item_id);
+    const reviewButton = button(reviewed ? "Reviewed" : "Review", "small ghost", () =>
+      openReview(order.item)
+    );
+    reviewButton.disabled = reviewed;
+    if (reviewed) reviewButton.title = "You have already reviewed this item.";
+    wrap.append(reviewButton);
+  }
+
   const options = order.allowed_next || {};
   Object.entries(options).forEach(([target, actor]) => {
     if (actor !== "either" && actor !== as) return;
@@ -1427,6 +1439,12 @@ function renderSales() {
   );
 }
 
+function filterReviews(reviews, mode) {
+  if (mode === "good") return reviews.filter((review) => review.rating >= 4);
+  if (mode === "bad") return reviews.filter((review) => review.rating <= 2);
+  return reviews;
+}
+
 function renderFeedback() {
   const data = state.feedback;
   if (!data) return;
@@ -1473,10 +1491,12 @@ function renderFeedback() {
     );
   }
 
-  const reviews = data.reviews || [];
+  const reviews = filterReviews(data.reviews || [], state.feedbackFilter);
   if (!reviews.length) {
     els.feedbackList.className = "review-list empty-state";
-    els.feedbackList.textContent = "No reviews yet.";
+    els.feedbackList.textContent = (data.reviews || []).length
+      ? `No ${state.feedbackFilter === "good" ? "good" : "bad"} reviews.`
+      : "No reviews yet.";
     return;
   }
   els.feedbackList.className = "review-list";
@@ -1759,6 +1779,16 @@ els.linkTagForm.addEventListener("submit", (event) => {
 
 els.salesStoreSelect.addEventListener("change", loadStoreOrders);
 els.feedbackStoreSelect.addEventListener("change", loadFeedback);
+
+els.reviewFilter.querySelectorAll("[data-review-filter]").forEach((node) => {
+  node.addEventListener("click", () => {
+    state.feedbackFilter = node.dataset.reviewFilter;
+    els.reviewFilter
+      .querySelectorAll("[data-review-filter]")
+      .forEach((tab) => tab.classList.toggle("active", tab === node));
+    renderFeedback();
+  });
+});
 
 els.refreshData.addEventListener("click", async () => {
   await loadData();
