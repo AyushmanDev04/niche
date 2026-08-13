@@ -118,11 +118,12 @@ class TestReviewsRequireAPurchase:
             f"/item/{item['id']}/review", json={"rating": 5}, headers=stranger
         )
         assert response.status_code == 403
-        assert "delivered" in response.get_json()["message"].lower()
+        assert "ordered" in response.get_json()["message"].lower()
 
-    def test_a_pending_order_is_not_enough(self, client, auth):
-        """An order that has not been delivered proves nothing about the
-        product, so it does not buy the right to rate it."""
+    def test_a_pending_order_is_enough(self, client, auth):
+        """Requiring a *delivered* order put reviewing behind the shop's own
+        queue — only staff can advance an order past pending, so a shop that
+        ignored its orders silenced every customer it had."""
         owner, _, item = _shop_with_item(client, auth)
         buyer, _, _ = auth("buyer", role="customer")
         assert client.post(
@@ -132,7 +133,7 @@ class TestReviewsRequireAPurchase:
         response = client.post(
             f"/item/{item['id']}/review", json={"rating": 5}, headers=buyer
         )
-        assert response.status_code == 403
+        assert response.status_code == 201, response.get_json()
 
     def test_a_cancelled_order_is_not_enough(self, client, auth):
         owner, _, item = _shop_with_item(client, auth)

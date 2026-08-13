@@ -632,10 +632,17 @@ function renderCatalogue() {
       const buy = button(soldOut ? "Sold out" : "Buy", "small", () => placeOrder(item));
       buy.disabled = soldOut;
       actions.append(buy);
-      actions.append(
-        button(alreadyReviewed ? "Reviewed" : "Review", "small ghost", () => openReview(item))
+
+      const review = button(
+        alreadyReviewed ? "Reviewed" : "Review",
+        "small ghost",
+        () => openReview(item)
       );
-      actions.lastChild.disabled = alreadyReviewed;
+      review.disabled = alreadyReviewed || !hasOrdered(item);
+      if (!alreadyReviewed && !hasOrdered(item)) {
+        review.title = "Order this item first to review it.";
+      }
+      actions.append(review);
       footer.append(actions);
 
       body.append(footer);
@@ -654,6 +661,12 @@ function field(labelText, control, hint) {
 
 function stockOf(item) {
   return item.stock_quantity == null ? null : Number(item.stock_quantity);
+}
+
+function hasOrdered(item) {
+  return state.myOrders.some(
+    (order) => order.item_id === item.id && order.status !== "cancelled"
+  );
 }
 
 function stockLabel(item) {
@@ -1567,14 +1580,9 @@ async function loadCustomerData() {
   state.stores = stores || [];
   state.myOrders = orders || [];
 
-  const reviewGroups = await Promise.all(
-    state.items.map((item) =>
-      request(`/item/${item.id}/review`)
-        .then((rows) => (rows || []).filter((row) => row.user_id === state.userId))
-        .catch(() => [])
-    )
-  );
-  state.myReviews = reviewGroups.flat();
+  state.myReviews = state.items
+    .flatMap((item) => item.reviews || [])
+    .filter((review) => review.user_id === state.userId);
 
   renderCatalogue();
   renderMyOrders();

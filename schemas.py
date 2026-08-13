@@ -48,6 +48,19 @@ class PlainReviewSchema(Schema):
     created_at = fields.DateTime(dump_only=True)
 
 
+class ReviewSchema(PlainReviewSchema):
+    """Defined ahead of ItemSchema because items embed reviews in this shape.
+
+    `user_id` is what makes that embedding useful: without it the console
+    could not tell its own reviews apart from anyone else's, and had to
+    re-fetch /item/<id>/review once per item on every page load.
+    """
+
+    item_id = fields.Int(dump_only=True)
+    user_id = fields.Int(dump_only=True)
+    username = fields.Str(dump_only=True, attribute="user.username")
+
+
 class PlainWorkerSchema(Schema):
     id = fields.Int(dump_only=True)
     username = fields.Str(dump_only=True)
@@ -70,7 +83,7 @@ class ItemSchema(PlainItemSchema):
     store_id = fields.Int(required=True, load_only=True)
     store = fields.Nested(PlainStoreSchema(), dump_only=True)
     tags = fields.List(fields.Nested(PlainTagSchema()), dump_only=True)
-    reviews = fields.List(fields.Nested(PlainReviewSchema()), dump_only=True)
+    reviews = fields.List(fields.Nested(ReviewSchema()), dump_only=True)
 
 
 class StoreSchema(PlainStoreSchema):
@@ -112,12 +125,6 @@ class StoreReviewSummarySchema(Schema):
     )
     per_item = fields.List(fields.Dict(), dump_only=True)
     reviews = fields.List(fields.Nested(StoreReviewSchema()), dump_only=True)
-
-
-class ReviewSchema(PlainReviewSchema):
-    item_id = fields.Int(dump_only=True)
-    user_id = fields.Int(dump_only=True)
-    username = fields.Str(dump_only=True, attribute="user.username")
 
 
 class UserSchema(Schema):

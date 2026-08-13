@@ -11,13 +11,11 @@ class StoreModel(db.Model):
     items = db.relationship(
         "ItemModel",
         back_populates="store",
-        lazy="dynamic",
         cascade="all, delete, delete-orphan",
     )
     tags = db.relationship(
         "TagModel",
         back_populates="store",
-        lazy="dynamic",
         cascade="all, delete, delete-orphan",
     )
     owner = db.relationship("UserModel", back_populates="stores")

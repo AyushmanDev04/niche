@@ -33,15 +33,18 @@ class ItemReviewList(MethodView):
     @blp.arguments(ReviewSchema)
     @blp.response(201, ReviewSchema)
     def post(self, review_data, item_id):
-        """Only a customer who actually received this item may review it.
+        """Only a customer who has ordered this item may review it.
 
         A rating carries weight because it comes from someone who bought the
         thing. Without the purchase check any account could rate any item —
         a shop could bury a competitor, or inflate itself through throwaway
         accounts, without a single order being placed.
 
-        "Received" means an order that reached `completed`: a pending or
-        cancelled one proves nothing about the product.
+        Any order that has not been cancelled counts, rather than only a
+        delivered one. Requiring delivery put the right to review behind the
+        shop's own queue: only staff can advance an order past `pending`, so
+        a shop that never worked its orders silenced every customer it had.
+        A cancelled order still proves nothing, and remains excluded.
         """
         require_customer()
 
@@ -51,15 +54,17 @@ class ItemReviewList(MethodView):
 
         user_id = int(get_jwt_identity())
 
-        has_purchased = db.session.query(
-            OrderModel.query.filter_by(
-                user_id=user_id, item_id=item_id, status=OrderStatus.COMPLETED
+        has_ordered = db.session.query(
+            OrderModel.query.filter(
+                OrderModel.user_id == user_id,
+                OrderModel.item_id == item_id,
+                OrderModel.status != OrderStatus.CANCELLED,
             ).exists()
         ).scalar()
-        if not has_purchased:
+        if not has_ordered:
             abort(
                 403,
-                message="You can only review an item after an order for it has been delivered.",
+                message="You can only review an item you have ordered.",
             )
 
         review = ReviewModel(
