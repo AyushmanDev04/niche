@@ -648,17 +648,26 @@ function renderCatalogue() {
       buy.disabled = soldOut;
       actions.append(buy);
 
+      const ordered = hasOrdered(item);
       const review = button(
         alreadyReviewed ? "Reviewed" : "Review",
         "small ghost",
         () => openReview(item)
       );
-      review.disabled = alreadyReviewed || !hasOrdered(item);
-      if (!alreadyReviewed && !hasOrdered(item)) {
-        review.title = "Order this item first to review it.";
-      }
+      review.disabled = alreadyReviewed || !ordered;
+      review.title = alreadyReviewed
+        ? "You have already reviewed this item."
+        : ordered
+        ? "Write a review"
+        : "Only customers who have bought this item can review it.";
       actions.append(review);
       footer.append(actions);
+
+      if (!alreadyReviewed && !ordered) {
+        footer.append(el("p", "action-hint", "Buy this to review it."));
+      } else if (alreadyReviewed) {
+        footer.append(el("p", "action-hint", "You reviewed this — see My Reviews."));
+      }
 
       body.append(footer);
       card.append(body);
