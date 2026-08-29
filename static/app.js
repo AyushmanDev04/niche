@@ -347,7 +347,11 @@ async function refreshAccessToken() {
 async function rawRequest(path, options, token) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
-  return fetch(apiUrl(path), { ...options, headers });
+  try {
+    return await fetch(apiUrl(path), { ...options, headers });
+  } catch {
+    throw new Error("Cannot reach the server. Check your connection and try again.");
+  }
 }
 
 async function request(path, options = {}, allowRetry = true) {
@@ -368,7 +372,7 @@ async function request(path, options = {}, allowRetry = true) {
     try {
       body = JSON.parse(text);
     } catch {
-      body = { message: text };
+      body = null;
     }
   }
 
@@ -378,9 +382,18 @@ async function request(path, options = {}, allowRetry = true) {
       const first = Object.entries(fieldErrors)[0];
       throw new Error(first ? `${first[0]}: ${[].concat(first[1]).join(", ")}` : "Invalid input.");
     }
-    throw new Error(body?.message || body?.description || `Request failed (${response.status})`);
+    throw new Error(body?.message || body?.description || statusMessage(response.status));
   }
   return body;
+}
+
+function statusMessage(status) {
+  if (status === 401) return "Your session has expired. Please sign in again.";
+  if (status === 403) return "You do not have permission to do that.";
+  if (status === 404) return "That is no longer available.";
+  if (status === 429) return "Too many attempts. Please wait a moment and try again.";
+  if (status >= 500) return "The server ran into a problem. Please try again in a moment.";
+  return `Request failed (${status}).`;
 }
 
 function formData(form) {
