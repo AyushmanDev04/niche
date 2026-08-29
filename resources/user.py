@@ -109,6 +109,7 @@ class UserLogin(MethodView):
             "role": user.role,
             "is_admin": user.is_admin,
             "username": user.username,
+            "id": user.id,
         }
 
 
@@ -189,6 +190,7 @@ class GoogleLogin(MethodView):
             "role": user.role,
             "is_admin": user.is_admin,
             "username": user.username,
+            "id": user.id,
         }
 
 

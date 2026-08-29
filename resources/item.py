@@ -104,7 +104,7 @@ class ItemList(MethodView):
         items = query.all()
         return [item for item in items if not item.is_hidden or can_work_store(item.store)]
 
-    @jwt_required(fresh=True)
+    @jwt_required()
     @blp.arguments(ItemSchema)
     @blp.response(201, ItemSchema)
     def post(self, item_data):
